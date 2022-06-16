@@ -111,7 +111,7 @@ pub extern "C" fn login_by_host(req: Request) -> Response {
     let rsp = unsafe { CStr::from_ptr(req).to_str() }
         .map_err(|e| e.into())
         .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
-        .and_then(|val| match (&val["keystore"], &val["password"]) {
+        .and_then(|val| match (&val["keyStore"], &val["password"]) {
             (keystore, Value::String(password)) => {
                 serde_json::from_value::<HostKeyStore>(keystore.clone())
                     .map(|keystore| (keystore, password.clone()))
