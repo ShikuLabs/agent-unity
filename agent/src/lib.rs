@@ -13,7 +13,7 @@ use std::ffi::{CStr, CString};
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use tokio::{task, runtime};
+use tokio::{runtime, task};
 
 mod host;
 mod ic_helper;
@@ -297,7 +297,8 @@ pub extern "C" fn ic_list_idl() -> Response {
 ///     "caller": ..
 /// }
 #[no_mangle]
-pub extern "C" fn ic_query_sync(
+#[tokio::main]
+pub async extern "C" fn ic_query_sync(
     caller: LPCSTR,
     canister_id: LPCSTR,
     method_name: LPCSTR,
@@ -331,9 +332,7 @@ pub extern "C" fn ic_query_sync(
                 .context(format!("Failed to parse canister_id {}", canister_id))?;
 
             let fut = query(&caller, &canister_id, method_name, args_raw);
-            let rst_idl = task::block_in_place(move || {
-                runtime::Handle::current().block_on(fut)
-            })?;
+            let rst_idl = task::block_in_place(move || runtime::Handle::current().block_on(fut))?;
 
             Ok(rst_idl.to_string())
         })
@@ -353,12 +352,81 @@ pub extern "C" fn free_rsp(rsp: Response) {
     drop(data);
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
+    use anyhow::{ensure, Result};
+
+    const NAME: &str = "agent-unity";
+    const PASSWORD: &str = "agent-unity-test";
+
+    const II_CANISTER_ID: &'static str = "rdmx6-jaaaa-aaaaa-aaadq-cai";
+    const II_CANDID_FILE: &'static str = include_str!("rdmx6-jaaaa-aaaaa-aaadq-cai.did");
 
     #[test]
-    fn ii_lookup() -> Result<()> {
-        todo!()
+    fn create_keystore_should_work() -> Result<()> {
+        let args_json = CString::new(r#"{"name": "agent-unity", "password": "agent-unity-test"}"#)?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = create_keystore(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let _key_store = serde_json::from_str::<HostKeyStore>(str)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn login_by_host_should_work() -> Result<()> {
+        let keystore = HostKeyStore::random(NAME, PASSWORD)?;
+        let keystore_json = serde_json::to_string(&keystore)?;
+        let args_json = CString::new(format!(
+            r#"{{"keyStore": {}, "password": "{}"}}"#,
+            keystore_json, PASSWORD
+        ))?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = login_by_host(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let _receipt = serde_json::from_str::<LoggedReceipt>(str)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn query_ii_lookup_should_work() -> Result<()> {
+        let keystore = HostKeyStore::random(NAME, PASSWORD)?;
+        let keystore_json = serde_json::to_string(&keystore)?;
+        let args_json = CString::new(format!(
+            r#"{{"keyStore": {}, "password": "{}"}}"#,
+            keystore_json, PASSWORD
+        ))?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = login_by_host(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let receipt = serde_json::from_str::<LoggedReceipt>(str)?;
+
+        // register ii candid file
+        ic_helper::register_idl(Principal::from_str(II_CANISTER_ID)?, II_CANDID_FILE.into())?;
+
+        let caller = CString::new(receipt.principal.to_string())?.into_raw() as LPCSTR;
+        let canister_id = "rdmx6-jaaaa-aaaaa-aaadq-cai\0".as_ptr() as LPCSTR;
+        let method_name = "lookup\0".as_ptr() as LPCSTR;
+        let args_raw = "(1974211: nat64)\0".as_ptr() as LPCSTR;
+
+        let rsp = ic_query_sync(caller, canister_id, method_name, args_raw);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let rst_raw = str;
+        println!("{}", rst_raw);
+
+        Ok(())
     }
 }

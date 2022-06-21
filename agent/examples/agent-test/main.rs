@@ -2,7 +2,6 @@ use anyhow::{anyhow, bail, Context};
 use candid::parser::value::IDLValue;
 use candid::types::{Function, Type};
 use candid::{check_prog, CandidType, Decode, Deserialize, IDLArgs, IDLProg, Principal, TypeEnv};
-use futures::executor::block_on;
 use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport;
 use ic_agent::identity::AnonymousIdentity;
 use ic_agent::Agent;
@@ -20,30 +19,36 @@ async fn main() -> anyhow::Result<()> {
     // 0. Init variable
     let method_name = "lookup";
     let canister_id = Principal::from_str(II_CANISTER_ID)?;
+
     // 1. parse did file;
     let (ty_env, actor) = check_candid_file(II_CANDID_FILE)?;
+
     // 2. get method signature from did file;
     let method_sig = get_method_signature(&ty_env, &actor, method_name)?;
+
     // 3. construct input arguments;
     let args_raw = "(1974211: nat64)";
     let args_blb = blob_from_args(args_raw, &ty_env, &method_sig)?;
+
     // 3-1. get effective canister id
     let effective_canister_id =
         get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
+
     // 4. create agent;
     let agent = Agent::builder()
         .with_transport(ReqwestHttpReplicaV2Transport::create(IC_MAIN_NET)?)
         .with_boxed_identity(Box::new(AnonymousIdentity {}))
         .build()?;
+
     // 5. construct transaction then call it;
-    let mut transaction = agent.query(&canister_id, method_name);
-    let rst_blb = block_on(async {
-        transaction
-            .with_arg(args_blb)
-            .with_effective_canister_id(effective_canister_id)
-            .call()
-            .await
-    })?;
+    let mut query_builder = agent.query(&canister_id, method_name);
+    let fut = query_builder
+        .with_arg(args_blb)
+        .with_effective_canister_id(effective_canister_id)
+        .call();
+    let rst_blb =
+        tokio::task::block_in_place(move || tokio::runtime::Handle::current().block_on(fut))?;
+
     // 6. deserialize the return value
     let rst_idl = args_from_blob(rst_blb.as_slice(), &ty_env, &method_sig)?;
     println!("{}", rst_idl);
