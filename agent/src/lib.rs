@@ -1,4 +1,5 @@
 use crate::host::HostKeyStore;
+use crate::ic_helper::{get_idl, list_idl, register_idl, remove_idl};
 use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use ic_agent::{identity::BasicIdentity, Identity};
@@ -12,7 +13,8 @@ use std::ffi::{CStr, CString};
 use std::fmt::Display;
 use std::sync::Mutex;
 
-pub mod host;
+mod host;
+mod ic_helper;
 
 type LPSTR = *mut c_char;
 type LPCSTR = *const c_char;
@@ -31,9 +33,9 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new<T: Into<Vec<u8>>>(data: T, is_err: bool) -> Self {
+    pub fn new<T: Into<String>>(data: T, is_err: bool) -> Self {
         // NOTE: Should be panic if is err!
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data.into()).unwrap();
         let ptr = data.into_raw();
 
         Self { ptr, is_err }
@@ -42,7 +44,7 @@ impl Response {
 
 impl<T, E> From<Result<T, E>> for Response
 where
-    T: Into<Vec<u8>>,
+    T: Into<String>,
     E: Display,
 {
     fn from(result: Result<T, E>) -> Self {
@@ -203,16 +205,92 @@ pub extern "C" fn logout(req: Request) -> Response {
         })
         .and_then(|(mut guard, principal)| match guard.remove(&principal) {
             Some(_) => Ok("success"),
-            _ => Err(anyhow!(
-                r#"cannot logout by principal: {}"#,
-                principal
-            )),
+            _ => Err(anyhow!(r#"cannot logout by principal: {}"#, principal)),
         })
         .into();
 
     rsp
 }
 
+/// Register idl file
+///
+/// Request Json:
+///
+/// {
+///     "canisterId": ..,
+///     "idlContent": ..
+/// }
+#[no_mangle]
+pub extern "C" fn ic_register_idl(req: Request) -> Response {
+    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+        .map_err(|e| e.into())
+        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
+        .and_then(|val| {
+            let canister_id = serde_json::from_value::<Principal>(val["canisterId"].clone());
+            let idl_content = serde_json::from_value::<String>(val["idlContent"].clone());
+
+            match canister_id {
+                Ok(cid) => match idl_content {
+                    Ok(idl) => Ok((cid, idl)),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(e),
+            }
+            .map_err(|e| e.into())
+        })
+        .and_then(|(cid, idl)| register_idl(cid, idl).map(|_| "()"))
+        .into();
+
+    rsp
+}
+
+#[no_mangle]
+pub extern "C" fn ic_remove_idl(req: Request) -> Response {
+    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+        .map_err(|e| e.into())
+        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
+        .and_then(|val| {
+            serde_json::from_value::<Principal>(val["canisterId"].clone()).map_err(|e| e.into())
+        })
+        .and_then(|cid| remove_idl(&cid))
+        .into();
+
+    rsp
+}
+
+#[no_mangle]
+pub extern "C" fn ic_get_idl(req: Request) -> Response {
+    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+        .map_err(|e| e.into())
+        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
+        .and_then(|val| {
+            serde_json::from_value::<Principal>(val["canisterId"].clone()).map_err(|e| e.into())
+        })
+        .and_then(|cid| get_idl(&cid))
+        .into();
+
+    rsp
+}
+
+#[no_mangle]
+pub extern "C" fn ic_list_idl(req: Request) -> Response {
+    let rsp = list_idl()
+        .and_then(|list| serde_json::to_string(&list).map_err(|e| e.into()))
+        .into();
+
+    rsp
+}
+
+/// Query canister from ic main-net
+///
+/// Request Json:
+///
+/// {
+///     "canisterId": ..,
+///     "funcName": ..,
+///     "funcArgs": [..],
+///     "caller": ..
+/// }
 #[no_mangle]
 pub extern "C" fn ic_query(req: Request) -> Response {
     todo!()
