@@ -286,19 +286,8 @@ pub extern "C" fn ic_list_idl() -> Response {
     rsp
 }
 
-/// Query canister from ic main-net
-///
-/// Request Json:
-///
-/// {
-///     "canisterId": ..,
-///     "funcName": ..,
-///     "funcArgs": [..],
-///     "caller": ..
-/// }
 #[no_mangle]
-#[tokio::main]
-pub async extern "C" fn ic_query_sync(
+pub extern "C" fn ic_query_sync(
     caller: LPCSTR,
     canister_id: LPCSTR,
     method_name: LPCSTR,
@@ -331,8 +320,10 @@ pub async extern "C" fn ic_query_sync(
             let canister_id = Principal::from_str(canister_id)
                 .context(format!("Failed to parse canister_id {}", canister_id))?;
 
+            let runtime = runtime::Runtime::new()?;
+
             let fut = query(&caller, &canister_id, method_name, args_raw);
-            let rst_idl = task::block_in_place(move || runtime::Handle::current().block_on(fut))?;
+            let rst_idl = runtime.block_on(fut)?;
 
             Ok(rst_idl.to_string())
         })
@@ -415,7 +406,8 @@ mod tests {
         // register ii candid file
         ic_helper::register_idl(Principal::from_str(II_CANISTER_ID)?, II_CANDID_FILE.into())?;
 
-        let caller = CString::new(receipt.principal.to_string())?.into_raw() as LPCSTR;
+        let caller = format!("{}\0", receipt.principal.to_string());
+        let caller = caller.as_ptr() as LPCSTR;
         let canister_id = "rdmx6-jaaaa-aaaaa-aaadq-cai\0".as_ptr() as LPCSTR;
         let method_name = "lookup\0".as_ptr() as LPCSTR;
         let args_raw = "(1974211: nat64)\0".as_ptr() as LPCSTR;
