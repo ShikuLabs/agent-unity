@@ -1,8 +1,8 @@
 use crate::host::HostKeyStore;
-use crate::ic_helper::{get_idl, list_idl, register_idl, remove_idl};
-use anyhow::anyhow;
+use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl};
+use anyhow::{anyhow, Context};
 use chrono::{DateTime, Utc};
-use ic_agent::{identity::BasicIdentity, Identity};
+use ic_agent::Identity;
 use ic_types::Principal;
 use lazy_static::lazy_static;
 use libc::c_char;
@@ -11,7 +11,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Display;
-use std::sync::Mutex;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+use tokio::{task, runtime};
 
 mod host;
 mod ic_helper;
@@ -22,7 +24,7 @@ type JSON = LPCSTR;
 type Request = JSON;
 
 lazy_static! {
-    static ref LOGGED_INFO: Mutex<HashMap::<Principal, (LoggedReceipt, BasicIdentity)>> =
+    static ref LOGGED_INFO: Mutex<HashMap::<Principal, (LoggedReceipt, Arc<dyn Identity>)>> =
         Mutex::new(HashMap::new());
 }
 
@@ -136,7 +138,10 @@ pub extern "C" fn login_by_host(req: Request) -> Response {
                 .map_err(|e| anyhow!(e.to_string()))
         })
         .and_then(|(mut guard, receipt, identity)| {
-            match guard.insert(receipt.principal.clone(), (receipt.clone(), identity)) {
+            match guard.insert(
+                receipt.principal.clone(),
+                (receipt.clone(), Arc::new(identity)),
+            ) {
                 Some(_) => Err(anyhow!(
                     "the account {} has been logged already",
                     receipt.principal
@@ -273,7 +278,7 @@ pub extern "C" fn ic_get_idl(req: Request) -> Response {
 }
 
 #[no_mangle]
-pub extern "C" fn ic_list_idl(req: Request) -> Response {
+pub extern "C" fn ic_list_idl() -> Response {
     let rsp = list_idl()
         .and_then(|list| serde_json::to_string(&list).map_err(|e| e.into()))
         .into();
@@ -292,17 +297,68 @@ pub extern "C" fn ic_list_idl(req: Request) -> Response {
 ///     "caller": ..
 /// }
 #[no_mangle]
-pub extern "C" fn ic_query(req: Request) -> Response {
-    todo!()
+pub extern "C" fn ic_query_sync(
+    caller: LPCSTR,
+    canister_id: LPCSTR,
+    method_name: LPCSTR,
+    args_raw: LPCSTR,
+) -> Response {
+    let caller_r = unsafe { CStr::from_ptr(caller).to_str() };
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
+    let method_name_r = unsafe { CStr::from_ptr(method_name).to_str() };
+    let args_raw_r = unsafe { CStr::from_ptr(args_raw).to_str() };
+
+    let args = match caller_r {
+        Ok(caller) => match canister_id_r {
+            Ok(canister_id) => match method_name_r {
+                Ok(method_name) => match args_raw_r {
+                    Ok(args_raw) => Ok((caller, canister_id, method_name, args_raw)),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+    .map_err(|e| anyhow::Error::from(e));
+
+    let rsp = args
+        .and_then(|(caller, canister_id, method_name, args_raw)| {
+            let caller = Principal::from_str(caller)
+                .context(format!("Failed to parse caller {}", caller))?;
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister_id {}", canister_id))?;
+
+            let fut = query(&caller, &canister_id, method_name, args_raw);
+            let rst_idl = task::block_in_place(move || {
+                runtime::Handle::current().block_on(fut)
+            })?;
+
+            Ok(rst_idl.to_string())
+        })
+        .into();
+
+    rsp
 }
 
-#[no_mangle]
-pub extern "C" fn ic_update(req: Request) -> Response {
-    todo!()
-}
+// #[no_mangle]
+// pub extern "C" fn ic_update_sync(req: Request) -> Response {
+//     todo!()
+// }
 
 #[no_mangle]
 pub extern "C" fn free_rsp(rsp: Response) {
     let data = unsafe { CString::from_raw(rsp.ptr) };
     drop(data);
+}
+
+mod tests {
+    use super::*;
+    use anyhow::Result;
+
+    #[test]
+    fn ii_lookup() -> Result<()> {
+        todo!()
+    }
 }

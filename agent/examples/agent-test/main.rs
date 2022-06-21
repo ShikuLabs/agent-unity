@@ -1,14 +1,14 @@
 use anyhow::{anyhow, bail, Context};
 use candid::parser::value::IDLValue;
 use candid::types::{Function, Type};
-use candid::{check_prog, Decode, IDLArgs, IDLProg, Principal, TypeEnv, CandidType, Deserialize};
+use candid::{check_prog, CandidType, Decode, Deserialize, IDLArgs, IDLProg, Principal, TypeEnv};
 use futures::executor::block_on;
 use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport;
 use ic_agent::identity::AnonymousIdentity;
 use ic_agent::Agent;
-use std::str::FromStr;
 use ic_utils::interfaces::management_canister::builders::{CanisterInstall, CanisterSettings};
 use ic_utils::interfaces::management_canister::MgmtMethod;
+use std::str::FromStr;
 
 pub const IC_MAIN_NET: &str = "https://ic0.app";
 
@@ -17,24 +17,25 @@ const II_CANDID_FILE: &'static str = include_str!("rdmx6-jaaaa-aaaaa-aaadq-cai.d
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // 0. 变量初始化
+    // 0. Init variable
     let method_name = "lookup";
     let canister_id = Principal::from_str(II_CANISTER_ID)?;
-    // 1. 剖析did解析文件;
+    // 1. parse did file;
     let (ty_env, actor) = check_candid_file(II_CANDID_FILE)?;
-    // 2. 从did解析结果获得对应函数的函数签名类型;
+    // 2. get method signature from did file;
     let method_sig = get_method_signature(&ty_env, &actor, method_name)?;
-    // 3. 构建方法入参;
+    // 3. construct input arguments;
     let args_raw = "(1974211: nat64)";
     let args_blb = blob_from_args(args_raw, &ty_env, &method_sig)?;
-    // 3-1. 获得ecid
-    let effective_canister_id = get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
-    // 4. 构造Agent;
+    // 3-1. get effective canister id
+    let effective_canister_id =
+        get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
+    // 4. create agent;
     let agent = Agent::builder()
         .with_transport(ReqwestHttpReplicaV2Transport::create(IC_MAIN_NET)?)
         .with_boxed_identity(Box::new(AnonymousIdentity {}))
         .build()?;
-    // 5. 构建/调用交易;
+    // 5. construct transaction then call it;
     let mut transaction = agent.query(&canister_id, method_name);
     let rst_blb = block_on(async {
         transaction
@@ -43,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
             .call()
             .await
     })?;
-    // 6. 反序列化返回值
+    // 6. deserialize the return value
     let rst_idl = args_from_blob(rst_blb.as_slice(), &ty_env, &method_sig)?;
     println!("{}", rst_idl);
 
@@ -115,16 +116,22 @@ fn args_from_blob(blob: &[u8], ty_env: &TypeEnv, meth_sig: &Function) -> anyhow:
     args_idl
 }
 
-fn get_effective_canister_id(method_name: &str, args_blob: &[u8], canister_id: &Principal) -> anyhow::Result<Principal> {
+fn get_effective_canister_id(
+    method_name: &str,
+    args_blob: &[u8],
+    canister_id: &Principal,
+) -> anyhow::Result<Principal> {
     let is_management_canister = Principal::management_canister() == *canister_id;
 
     if !is_management_canister {
         Ok(canister_id.clone())
     } else {
-        let method_name = MgmtMethod::from_str(method_name)
-            .with_context(|| {
-                format!("Attempted to call an unsupported management canister method: {}", method_name)
-            })?;
+        let method_name = MgmtMethod::from_str(method_name).with_context(|| {
+            format!(
+                "Attempted to call an unsupported management canister method: {}",
+                method_name
+            )
+        })?;
 
         match method_name {
             MgmtMethod::CreateCanister | MgmtMethod::RawRand => bail!(
