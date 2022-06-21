@@ -1,6 +1,6 @@
 use crate::host::HostKeyStore;
 use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl};
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, Context, Error};
 use chrono::{DateTime, Utc};
 use ic_agent::Identity;
 use ic_types::Principal;
@@ -13,7 +13,7 @@ use std::ffi::{CStr, CString};
 use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use tokio::{runtime, task};
+use tokio::runtime;
 
 mod host;
 mod ic_helper;
@@ -217,61 +217,65 @@ pub extern "C" fn logout(req: Request) -> Response {
     rsp
 }
 
-/// Register idl file
-///
-/// Request Json:
-///
-/// {
-///     "canisterId": ..,
-///     "idlContent": ..
-/// }
 #[no_mangle]
-pub extern "C" fn ic_register_idl(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
-        .map_err(|e| e.into())
-        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
-        .and_then(|val| {
-            let canister_id = serde_json::from_value::<Principal>(val["canisterId"].clone());
-            let idl_content = serde_json::from_value::<String>(val["idlContent"].clone());
+pub extern "C" fn ic_register_idl(canister_id: LPCSTR, candid_file: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
+    let candid_file_r = unsafe { CStr::from_ptr(candid_file).to_str() };
 
-            match canister_id {
-                Ok(cid) => match idl_content {
-                    Ok(idl) => Ok((cid, idl)),
-                    Err(e) => Err(e),
-                },
-                Err(e) => Err(e),
-            }
-            .map_err(|e| e.into())
+    let args = match canister_id_r {
+        Ok(canister_id) => match candid_file_r {
+            Ok(candid_file) => Ok((canister_id, candid_file)),
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+    .map_err(|e| Error::from(e));
+
+    let rsp = args
+        .and_then(|(canister_id, candid_file)| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister_id {}", canister_id))?;
+
+            let _ = register_idl(canister_id, candid_file.into())?;
+
+            Ok("()")
         })
-        .and_then(|(cid, idl)| register_idl(cid, idl).map(|_| "()"))
         .into();
 
     rsp
 }
 
 #[no_mangle]
-pub extern "C" fn ic_remove_idl(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
-        .map_err(|e| e.into())
-        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
-        .and_then(|val| {
-            serde_json::from_value::<Principal>(val["canisterId"].clone()).map_err(|e| e.into())
+pub extern "C" fn ic_remove_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+
+    let rsp = canister_id_r
+        .and_then(|canister_id| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister id {}", canister_id))?;
+
+            let candid_file = remove_idl(&canister_id)?;
+
+            Ok(candid_file)
         })
-        .and_then(|cid| remove_idl(&cid))
         .into();
 
     rsp
 }
 
 #[no_mangle]
-pub extern "C" fn ic_get_idl(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
-        .map_err(|e| e.into())
-        .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
-        .and_then(|val| {
-            serde_json::from_value::<Principal>(val["canisterId"].clone()).map_err(|e| e.into())
+pub extern "C" fn ic_get_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+
+    let rsp = canister_id_r
+        .and_then(|canister_id| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister id {}", canister_id))?;
+
+            let candid_file = get_idl(&canister_id)?;
+
+            Ok(candid_file)
         })
-        .and_then(|cid| get_idl(&cid))
         .into();
 
     rsp
@@ -311,7 +315,7 @@ pub extern "C" fn ic_query_sync(
         },
         Err(e) => Err(e),
     }
-    .map_err(|e| anyhow::Error::from(e));
+    .map_err(|e| Error::from(e));
 
     let rsp = args
         .and_then(|(caller, canister_id, method_name, args_raw)| {
