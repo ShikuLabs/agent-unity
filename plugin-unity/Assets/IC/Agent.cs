@@ -24,6 +24,19 @@ namespace IC {
 
         [DllImport("agent")]
         private static extern Response logout([MarshalAs(UnmanagedType.LPStr)] string req);
+
+        [DllImport("agent")]
+        private static extern Response ic_register_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+
+        [DllImport("agent")]
+        private static extern Response ic_remove_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+        
+        [DllImport("agent")]
+        private static extern Response ic_get_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+
+        [DllImport("agent")]
+        private static extern Response ic_list_idl();
+        
         
         private readonly struct Response
         {
@@ -112,6 +125,61 @@ namespace IC {
             var receipts = JsonConvert.DeserializeObject<LoggedReceipt[]>(data);
 
             return receipts;
+        }
+
+        public static void RegisterIdl(string canisterId, string idlContent)
+        {
+            var req = $@"{{""canisterId"": ""{canisterId}"", ""idlContent"": ""{idlContent}""}}";
+            var rsp = ic_register_idl(req);
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+        }
+
+        public static string RemoveIdl(string canisterId)
+        {
+            var req = $@"{{""canisterId"": ""{canisterId}""}}";
+            var rsp = ic_remove_idl(req);
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+
+            return data;
+        }
+        
+        public static string GetIdl(string canisterId)
+        {
+            var req = $@"{{""canisterId"": ""{canisterId}""}}";
+            var rsp = ic_get_idl(req);
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+
+            return data;
+        }
+
+        public static string[] ListIdl()
+        {
+            var rsp = ic_list_idl();
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+
+            var principals = JsonConvert.DeserializeObject<string[]>(data);
+
+            return principals;
         }
     }
     

@@ -1,3 +1,4 @@
+using System.IO;
 using IC;
 using UnityEngine;
 
@@ -7,6 +8,18 @@ namespace Example._01_code_snippet
     {
         // Start is called before the first frame update
         void Start()
+        {
+            // 1. Create keystore;
+            // 2. Login by keystore;
+            // 3. Get login info by principal;
+            // 4. List all login info;
+            LoginFlow();
+            
+            // 
+            CallFlow();
+        }
+
+        void LoginFlow()
         {
             var keyStore1 = Agent.CreateKeyStore("Allen Pocket", "123456");
             Debug.Log($"[x] Create first keystore: {keyStore1}\n");
@@ -27,7 +40,7 @@ namespace Example._01_code_snippet
             Debug.Log($"[x] Get second login info: {receipt2}\n");
 
             var receipts = Agent.ListLoggedReceipt();
-            Debug.Log($"[x] List login infos:");
+            Debug.Log("[x] List login infos:");
             for (int i = 0; i < receipts.Length; i++)
             {
                 Debug.Log($"    {i}. {receipts[i]}");
@@ -38,6 +51,29 @@ namespace Example._01_code_snippet
 
             Agent.Logout(receipt2.Principal);
             Debug.Log($"[x] Logout second keystore: {receipt2}\n");
+        }
+
+        void CallFlow()
+        {
+            const string II_CANISTER_ID = "rdmx6-jaaaa-aaaaa-aaadq-cai";
+            var II_IDL_PATH = Path.Join(Application.dataPath, $"Example/01_code_snippet/{II_CANISTER_ID}.did");
+            var II_IDL_CONTENT = System.IO.File.ReadAllText(II_IDL_PATH);
+
+            var idlContent = Agent.RemoveIdl(II_CANISTER_ID);
+            Debug.Log($"[x] Remove IDL Content: {idlContent}");
+            
+            Agent.RegisterIdl(II_CANISTER_ID, II_IDL_CONTENT);
+            Debug.Log("[x] Register II IDL File");
+
+            var canisterIds = Agent.ListIdl();
+            Debug.Log("List IDL canisterIds:");
+            foreach (var canisterId in canisterIds)
+            {
+                Debug.Log($"    [x] {canisterId}");
+            }
+
+            idlContent = Agent.GetIdl(II_CANISTER_ID);
+            Debug.Log($"[x] Get IDL Content: {idlContent}");
         }
     }
 }
