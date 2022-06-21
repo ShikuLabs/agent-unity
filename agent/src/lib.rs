@@ -254,7 +254,7 @@ pub extern "C" fn ic_remove_idl(canister_id: LPCSTR) -> Response {
             let canister_id = Principal::from_str(canister_id)
                 .context(format!("Failed to parse canister id {}", canister_id))?;
 
-            let candid_file = remove_idl(&canister_id)?;
+            let candid_file = remove_idl(&canister_id)?.unwrap_or("null".into());
 
             Ok(candid_file)
         })
@@ -272,7 +272,7 @@ pub extern "C" fn ic_get_idl(canister_id: LPCSTR) -> Response {
             let canister_id = Principal::from_str(canister_id)
                 .context(format!("Failed to parse canister id {}", canister_id))?;
 
-            let candid_file = get_idl(&canister_id)?;
+            let candid_file = get_idl(&canister_id)?.unwrap_or("null".into());
 
             Ok(candid_file)
         })

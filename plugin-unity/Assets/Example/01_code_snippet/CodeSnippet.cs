@@ -59,8 +59,9 @@ namespace Example._01_code_snippet
             var II_IDL_PATH = Path.Join(Application.dataPath, $"Example/01_code_snippet/{II_CANISTER_ID}.did");
             var II_IDL_CONTENT = System.IO.File.ReadAllText(II_IDL_PATH);
 
+            var isExist = Agent.RemoveIdl(II_CANISTER_ID) != null;
             var idlContent = Agent.RemoveIdl(II_CANISTER_ID);
-            Debug.Log($"[x] Remove IDL Content: {idlContent}");
+            Debug.Log($"[x] Remove IDL Content: {idlContent}; is exist: {isExist}");
             
             Agent.RegisterIdl(II_CANISTER_ID, II_IDL_CONTENT);
             Debug.Log("[x] Register II IDL File");
@@ -74,6 +75,14 @@ namespace Example._01_code_snippet
 
             idlContent = Agent.GetIdl(II_CANISTER_ID);
             Debug.Log($"[x] Get IDL Content: {idlContent}");
+            
+            var keyStore = Agent.CreateKeyStore("Allen Pocket", "123456");
+            var receipt = Agent.LoginByHost(keyStore, "123456");
+
+            var rstRaw = Agent.QuerySync(receipt.Principal, II_CANISTER_ID, "lookup", "(1974211: nat64)");
+            Debug.Log($"[x] Call II query func: lookup, result: {rstRaw}");
+                
+            Agent.Logout(receipt.Principal);
         }
     }
 }

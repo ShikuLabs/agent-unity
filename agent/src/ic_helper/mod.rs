@@ -34,26 +34,25 @@ pub fn register_idl(canister_id: Principal, idl_file: String) -> Result<()> {
         })
 }
 
-pub fn remove_idl(canister_id: &Principal) -> Result<String> {
+pub fn remove_idl(canister_id: &Principal) -> Result<Option<String>> {
     IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
         .and_then(|mut lookup| {
-            lookup
-                .remove(canister_id)
-                .ok_or(anyhow!("{} is not exist.", canister_id))
+            let candid_file = lookup.remove(canister_id);
+
+            Ok(candid_file)
         })
 }
 
-pub fn get_idl(canister_id: &Principal) -> Result<String> {
+pub fn get_idl(canister_id: &Principal) -> Result<Option<String>> {
     IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
         .and_then(|lookup| {
-            lookup
-                .get(canister_id)
-                .cloned()
-                .ok_or(anyhow!("{} is not exist.", canister_id))
+            let candid_file = lookup.get(canister_id).cloned();
+
+            Ok(candid_file)
         })
 }
 

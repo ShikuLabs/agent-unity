@@ -26,16 +26,24 @@ namespace IC {
         private static extern Response logout([MarshalAs(UnmanagedType.LPStr)] string req);
 
         [DllImport("agent")]
-        private static extern Response ic_register_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+        private static extern Response ic_register_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId, [MarshalAs(UnmanagedType.LPStr)] string candidFile);
 
         [DllImport("agent")]
-        private static extern Response ic_remove_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+        private static extern Response ic_remove_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
         
         [DllImport("agent")]
-        private static extern Response ic_get_idl([MarshalAs(UnmanagedType.LPStr)] string req);
+        private static extern Response ic_get_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
 
         [DllImport("agent")]
         private static extern Response ic_list_idl();
+        
+        [DllImport("agent")]
+        private static extern Response ic_query_sync(
+            [MarshalAs(UnmanagedType.LPStr)] string caller,
+            [MarshalAs(UnmanagedType.LPStr)] string canisterId,
+            [MarshalAs(UnmanagedType.LPStr)] string methodName,
+            [MarshalAs(UnmanagedType.LPStr)] string argsRaw
+        );
         
         
         private readonly struct Response
@@ -127,10 +135,9 @@ namespace IC {
             return receipts;
         }
 
-        public static void RegisterIdl(string canisterId, string idlContent)
+        public static void RegisterIdl(string canisterId, string candidFile)
         {
-            var req = $@"{{""canisterId"": ""{canisterId}"", ""idlContent"": ""{idlContent}""}}";
-            var rsp = ic_register_idl(req);
+            var rsp = ic_register_idl(canisterId, candidFile);
             
             var data = Marshal.PtrToStringAnsi(rsp.Ptr);
             free_rsp(rsp);
@@ -141,8 +148,7 @@ namespace IC {
 
         public static string RemoveIdl(string canisterId)
         {
-            var req = $@"{{""canisterId"": ""{canisterId}""}}";
-            var rsp = ic_remove_idl(req);
+            var rsp = ic_remove_idl(canisterId);
             
             var data = Marshal.PtrToStringAnsi(rsp.Ptr);
             free_rsp(rsp);
@@ -150,19 +156,22 @@ namespace IC {
             if (data == null) throw new Exception("inner error: data from rust-lib is null");
             if (rsp.IsErr) throw new Exception(data);
 
+            if (data == "null") return null;
+
             return data;
         }
         
         public static string GetIdl(string canisterId)
         {
-            var req = $@"{{""canisterId"": ""{canisterId}""}}";
-            var rsp = ic_get_idl(req);
+            var rsp = ic_get_idl(canisterId);
             
             var data = Marshal.PtrToStringAnsi(rsp.Ptr);
             free_rsp(rsp);
             
             if (data == null) throw new Exception("inner error: data from rust-lib is null");
             if (rsp.IsErr) throw new Exception(data);
+
+            if (data == "null") return null;
 
             return data;
         }
@@ -180,6 +189,19 @@ namespace IC {
             var principals = JsonConvert.DeserializeObject<string[]>(data);
 
             return principals;
+        }
+        
+        public static string QuerySync(string caller, string canisterId, string methodName, string argsRaw)
+        {
+            var rsp = ic_query_sync(caller, canisterId, methodName, argsRaw);
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+
+            return data;
         }
     }
     
