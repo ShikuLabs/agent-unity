@@ -46,9 +46,11 @@ namespace IC {
         );
         
         
+        [StructLayout(LayoutKind.Sequential)]
         private readonly struct Response
         {
             public readonly IntPtr Ptr;
+            [MarshalAs(UnmanagedType.I1)]
             public readonly bool IsErr;
         }
         
