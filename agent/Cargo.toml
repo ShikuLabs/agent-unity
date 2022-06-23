@@ -9,9 +9,13 @@ crate-type = ["lib", "cdylib"]
 
 [dependencies]
 # dfinity
-candid = "0.7.*"
-ic-types = "0.3.*"
-ic-agent = "0.16.*"
+candid = "0.7"
+ic-types = "0.3"
+ic-agent = "0.16"
+ic-utils = "0.16"
+# async runtime
+futures = "0.3"
+tokio = { version = "1.18", features = ["full"] }
 # serde
 serde = "1.0.*"
 serde_json = "1.0.*"
@@ -22,6 +26,7 @@ base64 = "0.13.0"
 rust-argon2 = "1.0.0"
 chacha20poly1305 = { version = "0.9.0", features = ["std"] }
 # helper
+hex = "0.4"
 anyhow = "1.0.*"
 #uuid = { version = "1.1.*", features = ["v4", "serde"] }
 lazy_static = "1.4.*"

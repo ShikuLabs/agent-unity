@@ -1,7 +1,8 @@
 use crate::host::HostKeyStore;
-use anyhow::anyhow;
+use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl};
+use anyhow::{anyhow, Context, Error};
 use chrono::{DateTime, Utc};
-use ic_agent::{identity::BasicIdentity, Identity};
+use ic_agent::Identity;
 use ic_types::Principal;
 use lazy_static::lazy_static;
 use libc::c_char;
@@ -10,9 +11,12 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Display;
-use std::sync::Mutex;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+use tokio::runtime;
 
-pub mod host;
+mod host;
+mod ic_helper;
 
 type LPSTR = *mut c_char;
 type LPCSTR = *const c_char;
@@ -20,7 +24,7 @@ type JSON = LPCSTR;
 type Request = JSON;
 
 lazy_static! {
-    static ref LOGGED_INFO: Mutex<HashMap::<Principal, (LoggedReceipt, BasicIdentity)>> =
+    static ref LOGGED_INFO: Mutex<HashMap::<Principal, (LoggedReceipt, Arc<dyn Identity>)>> =
         Mutex::new(HashMap::new());
 }
 
@@ -31,9 +35,9 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new<T: Into<Vec<u8>>>(data: T, is_err: bool) -> Self {
+    pub fn new<T: Into<String>>(data: T, is_err: bool) -> Self {
         // NOTE: Should be panic if is err!
-        let data = CString::new(data).unwrap();
+        let data = CString::new(data.into()).unwrap();
         let ptr = data.into_raw();
 
         Self { ptr, is_err }
@@ -42,7 +46,7 @@ impl Response {
 
 impl<T, E> From<Result<T, E>> for Response
 where
-    T: Into<Vec<u8>>,
+    T: Into<String>,
     E: Display,
 {
     fn from(result: Result<T, E>) -> Self {
@@ -134,7 +138,10 @@ pub extern "C" fn login_by_host(req: Request) -> Response {
                 .map_err(|e| anyhow!(e.to_string()))
         })
         .and_then(|(mut guard, receipt, identity)| {
-            match guard.insert(receipt.principal.clone(), (receipt.clone(), identity)) {
+            match guard.insert(
+                receipt.principal.clone(),
+                (receipt.clone(), Arc::new(identity)),
+            ) {
                 Some(_) => Err(anyhow!(
                     "the account {} has been logged already",
                     receipt.principal
@@ -203,10 +210,7 @@ pub extern "C" fn logout(req: Request) -> Response {
         })
         .and_then(|(mut guard, principal)| match guard.remove(&principal) {
             Some(_) => Ok("success"),
-            _ => Err(anyhow!(
-                r#"cannot logout by principal: {}"#,
-                principal
-            )),
+            _ => Err(anyhow!(r#"cannot logout by principal: {}"#, principal)),
         })
         .into();
 
@@ -214,17 +218,211 @@ pub extern "C" fn logout(req: Request) -> Response {
 }
 
 #[no_mangle]
-pub extern "C" fn ic_query(req: Request) -> Response {
-    todo!()
+pub extern "C" fn ic_register_idl(canister_id: LPCSTR, candid_file: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
+    let candid_file_r = unsafe { CStr::from_ptr(candid_file).to_str() };
+
+    let args = match canister_id_r {
+        Ok(canister_id) => match candid_file_r {
+            Ok(candid_file) => Ok((canister_id, candid_file)),
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+    .map_err(|e| Error::from(e));
+
+    let rsp = args
+        .and_then(|(canister_id, candid_file)| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister_id {}", canister_id))?;
+
+            let _ = register_idl(canister_id, candid_file.into())?;
+
+            Ok("()")
+        })
+        .into();
+
+    rsp
 }
 
 #[no_mangle]
-pub extern "C" fn ic_update(req: Request) -> Response {
-    todo!()
+pub extern "C" fn ic_remove_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+
+    let rsp = canister_id_r
+        .and_then(|canister_id| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister id {}", canister_id))?;
+
+            let candid_file = remove_idl(&canister_id)?.unwrap_or("null".into());
+
+            Ok(candid_file)
+        })
+        .into();
+
+    rsp
 }
+
+#[no_mangle]
+pub extern "C" fn ic_get_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+
+    let rsp = canister_id_r
+        .and_then(|canister_id| {
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister id {}", canister_id))?;
+
+            let candid_file = get_idl(&canister_id)?.unwrap_or("null".into());
+
+            Ok(candid_file)
+        })
+        .into();
+
+    rsp
+}
+
+#[no_mangle]
+pub extern "C" fn ic_list_idl() -> Response {
+    let rsp = list_idl()
+        .and_then(|list| serde_json::to_string(&list).map_err(|e| e.into()))
+        .into();
+
+    rsp
+}
+
+#[no_mangle]
+pub extern "C" fn ic_query_sync(
+    caller: LPCSTR,
+    canister_id: LPCSTR,
+    method_name: LPCSTR,
+    args_raw: LPCSTR,
+) -> Response {
+    let caller_r = unsafe { CStr::from_ptr(caller).to_str() };
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
+    let method_name_r = unsafe { CStr::from_ptr(method_name).to_str() };
+    let args_raw_r = unsafe { CStr::from_ptr(args_raw).to_str() };
+
+    let args = match caller_r {
+        Ok(caller) => match canister_id_r {
+            Ok(canister_id) => match method_name_r {
+                Ok(method_name) => match args_raw_r {
+                    Ok(args_raw) => Ok((caller, canister_id, method_name, args_raw)),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+    .map_err(|e| Error::from(e));
+
+    let rsp = args
+        .and_then(|(caller, canister_id, method_name, args_raw)| {
+            let caller = Principal::from_str(caller)
+                .context(format!("Failed to parse caller {}", caller))?;
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister_id {}", canister_id))?;
+
+            let runtime = runtime::Runtime::new()?;
+
+            let fut = query(&caller, &canister_id, method_name, args_raw);
+            let rst_idl = runtime.block_on(fut)?;
+
+            Ok(rst_idl.to_string())
+        })
+        .into();
+
+    rsp
+}
+
+// #[no_mangle]
+// pub extern "C" fn ic_update_sync(req: Request) -> Response {
+//     todo!()
+// }
 
 #[no_mangle]
 pub extern "C" fn free_rsp(rsp: Response) {
     let data = unsafe { CString::from_raw(rsp.ptr) };
     drop(data);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::{ensure, Result};
+
+    const NAME: &str = "agent-unity";
+    const PASSWORD: &str = "agent-unity-test";
+
+    const II_CANISTER_ID: &'static str = "rdmx6-jaaaa-aaaaa-aaadq-cai";
+    const II_CANDID_FILE: &'static str = include_str!("rdmx6-jaaaa-aaaaa-aaadq-cai.did");
+
+    #[test]
+    fn create_keystore_should_work() -> Result<()> {
+        let args_json = CString::new(r#"{"name": "agent-unity", "password": "agent-unity-test"}"#)?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = create_keystore(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let _key_store = serde_json::from_str::<HostKeyStore>(str)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn login_by_host_should_work() -> Result<()> {
+        let keystore = HostKeyStore::random(NAME, PASSWORD)?;
+        let keystore_json = serde_json::to_string(&keystore)?;
+        let args_json = CString::new(format!(
+            r#"{{"keyStore": {}, "password": "{}"}}"#,
+            keystore_json, PASSWORD
+        ))?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = login_by_host(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let _receipt = serde_json::from_str::<LoggedReceipt>(str)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn query_ii_lookup_should_work() -> Result<()> {
+        let keystore = HostKeyStore::random(NAME, PASSWORD)?;
+        let keystore_json = serde_json::to_string(&keystore)?;
+        let args_json = CString::new(format!(
+            r#"{{"keyStore": {}, "password": "{}"}}"#,
+            keystore_json, PASSWORD
+        ))?;
+        let req = args_json.as_ptr() as Request;
+
+        let rsp = login_by_host(req);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let receipt = serde_json::from_str::<LoggedReceipt>(str)?;
+
+        // register ii candid file
+        ic_helper::register_idl(Principal::from_str(II_CANISTER_ID)?, II_CANDID_FILE.into())?;
+
+        let caller = format!("{}\0", receipt.principal.to_string());
+        let caller = caller.as_ptr() as LPCSTR;
+        let canister_id = "rdmx6-jaaaa-aaaaa-aaadq-cai\0".as_ptr() as LPCSTR;
+        let method_name = "lookup\0".as_ptr() as LPCSTR;
+        let args_raw = "(1974211: nat64)\0".as_ptr() as LPCSTR;
+
+        let rsp = ic_query_sync(caller, canister_id, method_name, args_raw);
+        let str = unsafe { CStr::from_ptr(rsp.ptr).to_str() }?;
+        ensure!(!rsp.is_err, anyhow!(str));
+
+        let rst_raw = str;
+        println!("{}", rst_raw);
+
+        Ok(())
+    }
 }
