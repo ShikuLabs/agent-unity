@@ -12,11 +12,144 @@ The project will be stable as soon as possible.
 
 ## Install
 
-todo
-
 ## Use Cases
 
-todo
+### 1. Create keyStore
+
+```cs
+using IC;
+
+...
+
+void Start() {
+    // Create encrypted keyStore structure;
+    //
+    // string name: the name of keyStore;
+    // string password: the password to encrypted the private key;
+    //
+    // return: struct `HostKeyStore`;
+    var keyStore = Agent.CreateKeyStore("Allen Pocket", "123456");
+}
+
+...
+
+```
+
+```cs
+// The HostKeyStore struct
+public struct HostKeyStore
+{
+    [JsonProperty]
+    public readonly string Encoded;
+    [JsonProperty]
+    public readonly string Principal;
+    [JsonProperty]
+    public HostKeyStoreMeta Meta { get; set; }
+
+    public HostKeyStore(string encoded, string principal, HostKeyStoreMeta meta)
+    {
+        Encoded = encoded;
+        Principal = principal;
+        Meta = meta;
+    }
+    
+    public override string ToString() => $"{{encoded: {Encoded}, principal: {Principal}, meta: {Meta}}}";
+}
+```
+
+### 2. Login/Logout/GetLoggedInfo
+
+```cs
+using IC;
+
+...
+
+void Start() {
+    var keyStore = Agent.CreateKeyStore("Allen Pocket", "123456");
+
+
+    // Login by keyStore;
+    //
+    // HostKeyStore keyStore: the keyStore you want to login;
+    // string password: the password you want to decrypt the keyStore;
+    //
+    // return: struct `LoggedReceipt`;
+    var receipt = Agent.LoginByHost(keyStore, "123456");
+
+    // Get the logged receipt by principal;
+    //
+    // string principal: the identifier for the account, like address;
+    //
+    // return: struct `LoggedReceipt`;
+    receiptGetByPrincipal = Agent.GetLoggedReceipt(receipt.Principal);
+
+    // List all the logged receipts which have been logged;
+    //
+    // return: array of `LoggedReceipt`;
+    var receipts = Agent.ListLoggedReceipt();
+
+    // Logout by principal;
+    //
+    // string principal: the identifier for the account, like address;
+    Agent.Logout(receipt.Principal);
+}
+
+...
+
+```
+
+```cs
+// The LoggedReceipt struct
+    public readonly struct LoggedReceipt
+    {
+        [JsonProperty]
+        public readonly string Principal;
+        [JsonProperty]
+        public readonly DateTime Deadline;
+        [JsonProperty]
+        public readonly LoggedType LoggedType;
+
+        public LoggedReceipt(string principal, DateTime deadline, LoggedType loggedType)
+        {
+            Principal = principal;
+            Deadline = deadline;
+            LoggedType = loggedType;
+        }
+        
+        public override string ToString() =>
+            $"{{principal: {Principal}, deadline: {Deadline}, loggedType: {LoggedType}}}";
+    }
+```
+
+### 3. Query function of canister on ic
+
+```cs
+// For example, to query the `lookup` method of ii(internet identity) canister on ic mainnet;
+// 
+// The ii canisterId is: rdmx6-jaaaa-aaaaa-aaadq-cai, so:
+const string II_CANISTER_ID = "rdmx6-jaaaa-aaaaa-aaadq-cai";
+
+// Then you should have the ii candid file(will be posted below);
+// Read candid file from file;
+string II_IDL_CONTENT = ..;
+
+// Create keyStore then login;
+var keyStore = Agent.CreateKeyStore("Allen Pocket", "123456");
+var receipt = Agent.LoginByHost(keyStore, "123456");
+
+// Load candid file:
+Agent.RegisterIdl(II_CANISTER_ID, II_IDL_CONTENT);
+
+// Call `lookup` method;
+//
+// The function will return a struct which is serialized, that representation is literal;
+string rstRaw = Agent.QuerySync(receipt.Principal, II_CANISTER_ID, "lookup", "(1974211: nat64)");
+Debug.Log(rstRaw);
+
+Agent.Logout(receipt.Principal);
+```
+
+[The ii canister candid file](./agent//src/rdmx6-jaaaa-aaaaa-aaadq-cai.did)
 
 ## Features will be supported recently
 
@@ -33,8 +166,8 @@ todo
 
 ## Support Platform
 
-| Platform | State |
-| :------: | :---: |
-| Windows  |  ✅   |
-|   OSX    |  ✅   |
-|  Linux   |  ❌   |
+| Platform | Editor | Runtime |
+| :------: | :----: | :-----: |
+| Windows  |   ✅   |   🚧    |
+|   OSX    |   ✅   |   🚧    |
+|  Linux   |   ❌   |   ❌    |
