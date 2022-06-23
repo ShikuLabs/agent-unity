@@ -12,6 +12,19 @@ The project will be stable as soon as possible.
 
 ## Install
 
+1. Download the unity package:
+
+    * Open the page: https://github.com/ShikuLabs/agent-unity/releases/tag/alpha-0.1
+    * Click `com.shikulab.ic-agent.zip` then will start downloading
+    * Unzip the file, get a folder;
+
+2. Load Package to Unity Project:
+
+    * Open Unity, route to Windows-> Package Manager;
+    * Click the plus icon then choose `add package from disk`;
+    * Select the folder that unzipped last stage, Double click the `package.json` file;
+    * Load Successful!
+
 ## Use Cases
 
 ### 1. Create keyStore
