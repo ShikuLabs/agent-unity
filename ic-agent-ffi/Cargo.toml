@@ -1,6 +1,6 @@
 [package]
-name = "agent"
-description = "The core party of agent-unity"
+name = "ic-agent-ffi"
+description = "The backend of agent-unity"
 version = "0.1.0"
 edition = "2021"
 
