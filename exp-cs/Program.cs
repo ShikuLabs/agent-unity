@@ -184,4 +184,12 @@ namespace IC
         Host = 1,
         Ext = 2,
     }
+
+    public class KeyStore {
+        
+
+        public KeyStore(string name, string password) {
+            todo!()
+        }
+    }
 }
