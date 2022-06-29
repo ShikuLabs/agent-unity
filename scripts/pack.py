@@ -1,3 +1,5 @@
+#!.venv/bin/python3
+
 # TODO: 将__backend__的target目录下的编译结果
 # 1. 根据架构和操作系统和输入名, 对编译结果进行重命名: {name}.{prefix}
 # 2. 将重命名后的文件拷贝到__frontend__下的`Plugins`目录下, 根据{arch}和{os}确定目标位置;
