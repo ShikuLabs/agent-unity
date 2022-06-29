@@ -192,3 +192,25 @@ todo
 ## [TODO] Contributing
 
 todo
+
+## How to build[Draft]
+
+### Dependencies
+
+- Docker(manually)
+- Python3
+- Rust Toolchain
+
+```sh
+# Init Python Environment & Rust Toolchain
+sh ./init.sh
+
+# Build
+./build ..
+
+# Pack
+./pack ..
+
+# Publish
+./publish ..
+```

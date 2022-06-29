@@ -25,12 +25,12 @@ Compile the __backend__ as dynamic library to host system then copy it to __`THE
 
 ```sh
 # Debug
-sh ./native-build
+sh ./build-native
 # Or
-sh ./native-build --debug
+sh ./build-native --debug
 
 # Release
-sh ./native-build --release
+sh ./build-native --release
 ```
 
 ### 2. Cross Build(Useful in Publish)
@@ -53,14 +53,14 @@ __Cross-Build only supports three operating system and two architecture right no
 # <os>   : { osx | win | nix }
 # <arch> : { x86_64 | aarch64 }
 # [mode] : { debug | release }
-sh ./cross-build <os> <arch> [mode]
+sh ./build-cross <os> <arch> [mode]
 
 # For example, build to MacOS with apple silicon(Debug)
-sh ./cross-build osx aarch64
+sh ./build-cross osx aarch64
 # Or
-sh ./cross-build osx aarch64 --debug
+sh ./build-cross osx aarch64 --debug
 # Build to MacOS with apple silicon(Release)
-sh ./cross-build osx aarch64 --release
+sh ./build-cross osx aarch64 --release
 ```
 
 ## How to test?
