@@ -200,10 +200,11 @@ todo
 - Docker(manually)
 - Python3
 - Rust Toolchain
+- cross-rs
 
 ```sh
-# Init Python Environment & Rust Toolchain
-sh ./init.sh
+# Init Python Environment
+source init.sh
 
 # Build
 ./build ..

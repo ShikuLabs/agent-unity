@@ -44,7 +44,7 @@ __Cross-Build only supports three operating system and two architecture right no
 | Platform | x86 | x86_64/amd64 | armv7 | arm64/aarch64 |
 | :------: | :-: | :----------: | :---: | :-----------: |
 |   OSX    | ❌  |      ✅      |  ❌   |      ✅       |
-|   WIN    | ❌  |      ✅      |  ❌   |      ✅       |
+|   WIN    | ❌  |      ✅      |  ❌   |      ❌       |
 |   NIX    | ❌  |      ✅      |  ❌   |      ✅       |
 
 ```sh
