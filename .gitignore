@@ -1,2 +1,7 @@
 .venv
 .DS_Store
+build
+clean
+test
+pack
+publish
