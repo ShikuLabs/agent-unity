@@ -1,5 +1,8 @@
 .venv
 .DS_Store
+
+/target
+
 build
 clean
 test

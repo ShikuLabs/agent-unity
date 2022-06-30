@@ -31,18 +31,34 @@ UNKNOWN_TARGET = 'unknown-unknown-unknown-unknown'
 @click.option('--release/--no-release', default=False)
 @click.pass_context
 def cli(ctx, release):
-    ab_dir = os.path.dirname(os.path.realpath(__file__))
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    project_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
 
     ctx.ensure_object(dict)
     ctx.obj['MODE'] = release
-    ctx.obj['ABDIR'] = ab_dir
+    ctx.obj['SCRIPT_DIR'] = script_dir
+    ctx.obj['PROJECT_DIR'] = project_dir
 
 @cli.command()
 @click.pass_context
 def native(ctx):
     mode = '--release' if ctx.obj['MODE'] else ''
-    ab_dir = ctx.obj['ABDIR']
-    os.system(f'cd {ab_dir}/../ic-agent-backend && cargo rustc {mode} -- --crate-type=cdylib')
+    
+    project_dir = ctx.obj['PROJECT_DIR']
+    
+    target = os.popen('rustup default | sed -e "s/^stable-//" -e "s/(default)$//" -e "s/^nightly-//"').read().replace('\n', '')
+    target_dir = f'{project_dir}/target/native_{target}'
+
+    cmd = f'cargo rustc {mode} --manifest-path={project_dir}/ic-agent-backend/Cargo.toml --target-dir={target_dir} -- --crate-type=cdylib'
+    stats = os.system(cmd)
+    code = os.WEXITSTATUS(stats)
+
+    if code != 0:
+        click.echo(click.style("ERROR", fg="red") + f": Failed to native compile to target: {target}")
+    else:
+        click.echo(click.style("OK", fg="green") + f": Succeed to native compile to target: {target}")
+
+
 
 @cli.command()
 @click.option('--arch', required=True, type=click.Choice(['x86_64', 'aarch64'], case_sensitive=False))
@@ -50,7 +66,8 @@ def native(ctx):
 @click.pass_context
 def cross(ctx, arch, os_):
     mode = '--release' if ctx.obj['MODE'] else ''
-    ab_dir = ctx.obj['ABDIR']
+
+    project_dir = ctx.obj['PROJECT_DIR']
     
     target = UNKNOWN_TARGET
 
@@ -70,11 +87,17 @@ def cross(ctx, arch, os_):
             click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-unknown-linux-gnu")
 
     if target != UNKNOWN_TARGET:
-        stats = os.system(f'cd {ab_dir}/../ic-agent-backend && cross rustc {mode} -- --crate-type=cdylib --target {target}')
+        target_dir = f'{project_dir}/target/cross_{target}'
+
+        cmd = f'cross rustc {mode} --manifest-path={project_dir}/ic-agent-backend/Cargo.toml --target-dir={target_dir} --target={target} -- --crate-type=cdylib'
+
+        stats = os.system(cmd)
         code = os.WEXITSTATUS(stats)
 
         if code != 0:
-            click.echo(click.style("ERROR", fg="red") + f": Failed to cross compile to {target}")
+            click.echo(click.style("ERROR", fg="red") + f": Failed to cross compile to target: {target}")
+        else:
+            click.echo(click.style("OK", fg="green") + f": Succeed to cross compile to target: {target}")
 
 
 if __name__ == '__main__':
