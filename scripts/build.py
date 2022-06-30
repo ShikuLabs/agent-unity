@@ -56,24 +56,25 @@ def cross(ctx, arch, os_):
 
     if arch == 'x86_64':
         if os_ == 'osx':
-            click.echo('x86_64-osx will support soon!')
+            click.echo(click.style("ATTENTION", fg="yellow") + ": Not support target: x86_64-apple-darwin yet")
         elif os_ == 'win':
-            target = 'x86_64-pc-windows-gnu'
+            target = "x86_64-pc-windows-gnu"
         elif os_ == 'nix':
-            target = 'x86_64-unknown-linux-gnu'
+            target = "x86_64-unknown-linux-gnu"
     elif arch == 'aarch64':
         if os_ == 'osx':
-            click.echo('aarch64-osx will support soon!')
+            click.echo(click.style("ATTENTION", fg="yellow") + ": Not support target: aarch64-apple-darwin yet")
         elif os_ == 'win':
-            click.echo('aarch64-win will support soon!')
+            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-pc-windows-gnu")
         elif os_ == 'nix':
-            target = 'aarch64-unknown-linux-gnu'
-
+            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-unknown-linux-gnu")
 
     if target != UNKNOWN_TARGET:
-        os.system(f'cd {ab_dir}/../ic-agent-backend && cross rustc {mode} -- --crate-type=cdylib --target {target}')
-    else:
-        click.echo(f'No Support For {arch}-{os_}')
+        stats = os.system(f'cd {ab_dir}/../ic-agent-backend && cross rustc {mode} -- --crate-type=cdylib --target {target}')
+        code = os.WEXITSTATUS(stats)
+
+        if code != 0:
+            click.echo(click.style("ERROR", fg="red") + f": Failed to cross compile to {target}")
 
 
 if __name__ == '__main__':
