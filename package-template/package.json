@@ -5,18 +5,18 @@
   "description": "The package brings the IC ecosystem to Unity, allowing Unity developers to call the functions of canisters on IC, create encrypted account files.",
   "unity": "2021.3",
   "unityRelease": "4f1",
-  "documentationUrl": "https://example.com/",
-  "changelogUrl": "https://example.com/changelog.html",
-  "licensesUrl": "https://example.com/licensing.html",
+  "documentationUrl": "https://github.com/ShikuLabs/agent-unity",
+  "changelogUrl": "https://github.com/ShikuLabs/agent-unity",
+  "licensesUrl": "https://github.com/ShikuLabs/agent-unity",
   "keywords": [
     "dfinity",
     "agent",
     "encrytped"
   ],
   "author": {
-    "name": "Allen Pocket",
-    "email": "AllenPocektWork@Gmail.com",
-    "url": "https://www.allenpocket.work/"
+    "name": "Shiku Labs",
+    "email": "labs@shiku.com",
+    "url": "https://github.com/ShikuLabs"
   },
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.0.2"
