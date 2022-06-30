@@ -7,37 +7,37 @@ using UnityEngine;
 namespace IC {
     public static class Agent
     {
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response create_keystore([MarshalAs(UnmanagedType.LPStr)] string req);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern void free_rsp(Response rsp);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response login_by_host([MarshalAs(UnmanagedType.LPStr)] string req);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response get_logged_receipt([MarshalAs(UnmanagedType.LPStr)] string req);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response list_logged_receipt();
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response logout([MarshalAs(UnmanagedType.LPStr)] string req);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response ic_register_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId, [MarshalAs(UnmanagedType.LPStr)] string candidFile);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response ic_remove_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
         
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response ic_get_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
 
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response ic_list_idl();
         
-        [DllImport("agent")]
+        [DllImport("ic-agent")]
         private static extern Response ic_query_sync(
             [MarshalAs(UnmanagedType.LPStr)] string caller,
             [MarshalAs(UnmanagedType.LPStr)] string canisterId,
