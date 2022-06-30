@@ -16,7 +16,7 @@ def native(ctx):
     mode = '--release' if ctx.obj['MODE'] else ''
     ab_dir = os.path.dirname(os.path.realpath(__file__))
     
-    stats = os.system(f'cd {ab_dir}/../ic-agent-backend && cargo clean {mode}')
+    stats = os.system(f'cd {ab_dir}/../ic-agent-ffi && cargo clean {mode}')
     code = os.WEXITSTATUS(stats)
 
     if code != 0:

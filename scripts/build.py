@@ -49,7 +49,7 @@ def native(ctx):
     target = os.popen('rustup default | sed -e "s/^stable-//" -e "s/(default)$//" -e "s/^nightly-//"').read().replace('\n', '')
     target_dir = f'{project_dir}/target/native_{target}'
 
-    cmd = f'cargo rustc {mode} --manifest-path={project_dir}/ic-agent-backend/Cargo.toml --target-dir={target_dir} -- --crate-type=cdylib'
+    cmd = f'cargo rustc {mode} --manifest-path={project_dir}/ic-agent-ffi/Cargo.toml --target-dir={target_dir} -- --crate-type=cdylib'
     stats = os.system(cmd)
     code = os.WEXITSTATUS(stats)
 
@@ -89,7 +89,7 @@ def cross(ctx, arch, os_):
     if target != UNKNOWN_TARGET:
         target_dir = f'{project_dir}/target/cross_{target}'
 
-        cmd = f'cross rustc {mode} --manifest-path={project_dir}/ic-agent-backend/Cargo.toml --target-dir={target_dir} --target={target} -- --crate-type=cdylib'
+        cmd = f'cross rustc {mode} --manifest-path={project_dir}/ic-agent-ffi/Cargo.toml --target-dir={target_dir} --target={target} -- --crate-type=cdylib'
 
         stats = os.system(cmd)
         code = os.WEXITSTATUS(stats)
