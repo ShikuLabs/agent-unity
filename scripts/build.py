@@ -3,10 +3,10 @@
 # How to use
 #
 #   Sub CLI: Native
-#   python ./script/build.py (native) [-mode { (debug) | release }]
+#       ./build [{ --no-release | --release }] native
 #
 #   Sub CLI: Cross
-#   python ./script/build.py cross <-arch { x86_64 | aarch64 }> <-os { osx | win | nix }> [-mode { (debug) | release }]
+#       ./build [{ (--no-release) | -- release }] cross [--arch { x86_64 | aarch64 }] [--os { osx | win | nix }]
 #
 # What is that
 #
@@ -47,7 +47,7 @@ def native(ctx):
     project_dir = ctx.obj['PROJECT_DIR']
     
     target = os.popen('rustup default | sed -e "s/^stable-//" -e "s/(default)$//" -e "s/^nightly-//"').read().replace('\n', '')
-    target_dir = f'{project_dir}/target/native_{target}'
+    target_dir = f'{project_dir}/target/native-{target}'
 
     cmd = f'cargo rustc {mode} --manifest-path={project_dir}/ic-agent-ffi/Cargo.toml --target-dir={target_dir} -- --crate-type=cdylib'
     stats = os.system(cmd)
@@ -87,7 +87,7 @@ def cross(ctx, arch, os_):
             click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-unknown-linux-gnu")
 
     if target != UNKNOWN_TARGET:
-        target_dir = f'{project_dir}/target/cross_{target}'
+        target_dir = f'{project_dir}/target/cross-{target}'
 
         cmd = f'cross rustc {mode} --manifest-path={project_dir}/ic-agent-ffi/Cargo.toml --target-dir={target_dir} --target={target} -- --crate-type=cdylib'
 
