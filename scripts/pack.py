@@ -26,7 +26,6 @@ import json
 import click
 import shutil
 import pathlib
-import zipfile
 
 @click.command()
 @click.option('--release/--no-release', default=False)
