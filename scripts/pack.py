@@ -89,14 +89,19 @@ def pack(release, input, compress, version, output):
 
     is_failed = False
 
-    # 4. copy the dynamic library to matched folder in `./pack-temp`
+    # 4. copy the dynamic library to matched folder in `./pack-temp` (cross first)
     for path, meta in dy_dicts.items():
+        input_ = meta['input']
         arch = meta['arch']
         os_ = map_os(meta['os'])
 
         ext = pathlib.Path(path).suffix.replace('.', '')
+        dst_path = f'{pack_temp_dir}/Plugins/{arch}/{os_}/ic-agent.{ext}'
 
-        cmd = f'cp -r {path} {pack_temp_dir}/Plugins/{arch}/{os_}/ic-agent.{ext}'
+        # if there has had a library already, jump over if the current library is `native`
+        if os.path.isfile(dst_path) and input_ == 'native': continue
+
+        cmd = f'cp -r {path} {dst_path}'
         stats = os.system(cmd)
         code = os.WEXITSTATUS(stats)
 
