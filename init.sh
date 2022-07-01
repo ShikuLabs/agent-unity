@@ -3,14 +3,10 @@
 # Clean
 rm -rf .venv
 rm -rf build clean test pack publish
-rm -rf ./scripts/requirements.txt
 
 # Install virutal environment(python) `.venv`;
 python3 -m venv .venv
 source .venv/bin/activate
-
-pip3 install pipreqs
-pipreqs ./scripts --force
 
 # Install dependencies(python) by `requirements.txt`;
 pip3 install -r ./scripts/requirements.txt
