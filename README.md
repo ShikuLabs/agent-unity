@@ -184,3 +184,34 @@ Agent.Logout(receipt.Principal);
 | Windows  |   ✅   |   🚧    |
 |   OSX    |   ✅   |   🚧    |
 |  Linux   |   ❌   |   ❌    |
+
+## [TODO] The Unity Package Release Page
+
+todo
+
+## [TODO] Contributing
+
+todo
+
+## How to build[Draft]
+
+### Dependencies
+
+- Docker(manually)
+- Python3
+- Rust Toolchain
+- cross-rs
+
+```sh
+# Init Python Environment
+source init.sh
+
+# Build
+./build ..
+
+# Pack
+./pack ..
+
+# Publish
+./publish ..
+```
