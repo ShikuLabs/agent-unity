@@ -62,7 +62,7 @@ Look the __[detail](./scripts/README.md)__.
     ![upm-via-git](./docs/imgs/upm-via-git.png)
 
     ```
-    https://github.com/ShikuLabs/agent-unity#upm
+    https://github.com/ShikuLabs/agent-unity.git#upm
     ```
 
 - Installation via
