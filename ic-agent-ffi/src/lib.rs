@@ -1,5 +1,5 @@
 use crate::host::HostKeyStore;
-use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl};
+use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl, update};
 use anyhow::{anyhow, Context, Error};
 use chrono::{DateTime, Utc};
 use ic_agent::Identity;
@@ -336,10 +336,51 @@ pub extern "C" fn ic_query_sync(
     rsp
 }
 
-// #[no_mangle]
-// pub extern "C" fn ic_update_sync(req: Request) -> Response {
-//     todo!()
-// }
+#[no_mangle]
+pub extern "C" fn ic_update_sync(
+    caller: LPCSTR,
+    canister_id: LPCSTR,
+    method_name: LPCSTR,
+    args_raw: LPCSTR,
+) -> Response {
+    let caller_r = unsafe { CStr::from_ptr(caller).to_str() };
+    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
+    let method_name_r = unsafe { CStr::from_ptr(method_name).to_str() };
+    let args_raw_r = unsafe { CStr::from_ptr(args_raw).to_str() };
+
+    let args = match caller_r {
+        Ok(caller) => match canister_id_r {
+            Ok(canister_id) => match method_name_r {
+                Ok(method_name) => match args_raw_r {
+                    Ok(args_raw) => Ok((caller, canister_id, method_name, args_raw)),
+                    Err(e) => Err(e),
+                },
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+    .map_err(|e| Error::from(e));
+
+    let rsp = args
+        .and_then(|(caller, canister_id, method_name, args_raw)| {
+            let caller = Principal::from_str(caller)
+                .context(format!("Failed to parse caller {}", caller))?;
+            let canister_id = Principal::from_str(canister_id)
+                .context(format!("Failed to parse canister_id {}", canister_id))?;
+
+            let runtime = runtime::Runtime::new()?;
+
+            let fut = update(&caller, &canister_id, method_name, args_raw);
+            let rst_idl = runtime.block_on(fut)?;
+
+            Ok(rst_idl.to_string())
+        })
+        .into();
+
+    rsp
+}
 
 #[no_mangle]
 pub extern "C" fn free_rsp(rsp: Response) {

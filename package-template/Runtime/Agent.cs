@@ -45,6 +45,13 @@ namespace IC {
             [MarshalAs(UnmanagedType.LPStr)] string argsRaw
         );
         
+        [DllImport("ic-agent")]
+        private static extern Response ic_update_sync(
+            [MarshalAs(UnmanagedType.LPStr)] string caller,
+            [MarshalAs(UnmanagedType.LPStr)] string canisterId,
+            [MarshalAs(UnmanagedType.LPStr)] string methodName,
+            [MarshalAs(UnmanagedType.LPStr)] string argsRaw
+        );
         
         [StructLayout(LayoutKind.Sequential)]
         private readonly struct Response
@@ -196,6 +203,19 @@ namespace IC {
         public static string QuerySync(string caller, string canisterId, string methodName, string argsRaw)
         {
             var rsp = ic_query_sync(caller, canisterId, methodName, argsRaw);
+            
+            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
+            free_rsp(rsp);
+            
+            if (data == null) throw new Exception("inner error: data from rust-lib is null");
+            if (rsp.IsErr) throw new Exception(data);
+
+            return data;
+        }
+        
+        public static string UpdateSync(string caller, string canisterId, string methodName, string argsRaw)
+        {
+            var rsp = ic_update_sync(caller, canisterId, methodName, argsRaw);
             
             var data = Marshal.PtrToStringAnsi(rsp.Ptr);
             free_rsp(rsp);

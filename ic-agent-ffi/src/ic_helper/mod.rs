@@ -98,8 +98,42 @@ pub async fn query(
     Ok(rst_idl)
 }
 
-pub async fn update() -> Result<IDLArgs> {
-    todo!()
+pub async fn update(
+    caller: &Principal,
+    canister_id: &Principal,
+    method_name: &str,
+    args_raw: &str,
+) -> Result<IDLArgs> {
+    // 1. parse did file
+    let (ty_env, actor) = check_candid_file(canister_id)?;
+    // 2. get method signature by method name
+    let method_sig = get_method_signature(method_name, &ty_env, &actor)?;
+    // 3. parse input arguments to blob
+    let args_blb = blob_from_raw(args_raw, &ty_env, &method_sig)?;
+    // 4. get effective canister id
+    let effective_canister_id =
+        get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
+    // 5. create agent
+    let agent = create_agent(caller, IC_MAIN_NET)?;
+    // 6. construct transaction then call it
+    let rst_blb = agent
+        .update(&canister_id, method_name)
+        .with_arg(args_blb)
+        .with_effective_canister_id(effective_canister_id)
+        .call_and_wait(
+            garcon::Delay::builder()
+                .timeout(std::time::Duration::from_secs(60 * 5))
+                .build(),
+        )
+        .await
+        .context(format!(
+            "Failed to call {} from canister {}",
+            method_name, canister_id
+        ))?;
+    // 7. deserialize from args_blb to args_idl
+    let rst_idl = idl_from_blob(rst_blb.as_slice(), &ty_env, &method_sig)?;
+
+    Ok(rst_idl)
 }
 
 fn check_candid_file(canister_id: &Principal) -> Result<(TypeEnv, Option<Type>)> {
