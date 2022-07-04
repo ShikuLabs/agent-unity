@@ -12,6 +12,31 @@ The project is in an early stage, feature-less, documentation-sparse, and API wi
 
 __NOTE__: __Beta version is available, Only for experiment!__
 
+## Milestones
+
+### Milestone 01: 【Draft】Call IC methods on Unity3D
+
+- [x] ✨ Support `HostKeyStore`, a simple encrypted account module;
+- [x] ✨ Support login/logout by `HostKeyStore`;
+- [x] ✨ Call query methods on ic mainnet;
+- [x] ✨ Call update methods on ic mainnet;
+- [x] ✨ Support target: x86_64-win;
+- [x] ✨ Support target: x86_64-nix;
+- [x] ✨ Support target: aarch64-osx;
+- [ ] ✨ Support target: x86_64-osx;
+
+### Milestone 02: 【Basic】Core features/libraries mapping
+
+- [ ] ✨ Mapping `candid` from rs to cs;
+- [ ] ✨ Mapping `ic-types` from rs to cs;
+- [ ] ✨ Mapping `ic-agent` from rs to cs;
+- [ ] ✨ Mapping `ic-utils` from rs to cs;
+
+### Milestone 03: 【Enhancement】Provide helpful utilities for Unity3D Devs
+
+- [ ] ✨ Candid file downloader(For hot-update);
+- [ ] ✨ Encrypted account file module;
+- [ ] ✨ Authentication & Authorization by II;
 
 ## How to build
 
