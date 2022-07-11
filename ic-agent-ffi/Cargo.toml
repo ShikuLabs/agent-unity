@@ -7,6 +7,12 @@ edition = "2021"
 [lib]
 crate-type = ["lib", "cdylib"]
 
+[package.metadata.cross.target.x86_64-apple-darwin]
+image = "ghcr.io/agent-unity/x86_64-apple-darwin-cross:custom"
+
+[package.metadata.cross.target.aarch64-apple-darwin]
+image = "ghcr.io/agent-unity/aarch64-apple-darwin-cross:custom"
+
 [dependencies]
 # dfinity
 candid = "0.7"

@@ -73,14 +73,14 @@ def cross(ctx, arch, os_):
 
     if arch == 'x86_64':
         if os_ == 'osx':
-            click.echo(click.style("ATTENTION", fg="yellow") + ": Not support target: x86_64-apple-darwin yet")
+            target = "x86_64-apple-darwin"
         elif os_ == 'win':
             target = "x86_64-pc-windows-gnu"
         elif os_ == 'nix':
             target = "x86_64-unknown-linux-gnu"
     elif arch == 'aarch64':
         if os_ == 'osx':
-            click.echo(click.style("ATTENTION", fg="yellow") + ": Not support target: aarch64-apple-darwin yet")
+            target = "aarch64-apple-darwin"
         elif os_ == 'win':
             click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-pc-windows-gnu")
         elif os_ == 'nix':
