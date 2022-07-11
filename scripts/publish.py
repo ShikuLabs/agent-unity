@@ -27,7 +27,7 @@ import click
 @click.option('--release/--no-release', default=False)
 @click.option('--input', type=click.Choice(['native', 'cross', 'all'], case_sensitive=False), default='native')
 @click.option('--compress', type=click.Choice(['none', 'zip'], case_sensitive=False), default='none')
-@click.option('--version', required=True, type=str, default='0.1.0')
+@click.option('--version', required=True, type=str, default='none')
 @click.option('--output', required=True, type=str, default='./')
 @click.pass_context
 def publish(ctx, release, input, compress, version, output):

@@ -23,7 +23,7 @@ __NOTE__: __Beta version is available, Only for experiment!__
 - [x] ✨ Support target: x86_64-win;
 - [x] ✨ Support target: x86_64-nix;
 - [x] ✨ Support target: aarch64-osx;
-- [ ] ✨ Support target: x86_64-osx;
+- [x] ✨ Support target: x86_64-osx;
 
 ### Milestone 02: 【Basic】Core features/libraries mapping
 
