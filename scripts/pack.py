@@ -35,8 +35,8 @@ import pathlib
 @click.option('--output', required=True, type=str, default='./')
 def pack(release, input, compress, version, output):
     if not os.path.isdir(output):
-        click.echo(click.style("ERROR", fg="red") + f": Wrong option --output={output}, should be directory!")
-        return
+        click.echo(click.style("ERROR", fg="red") + f": Wrong option --output={output}, should be directory!", err=True)
+        raise click.Abort()
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
     project_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
@@ -83,8 +83,8 @@ def pack(release, input, compress, version, output):
     code = os.WEXITSTATUS(stats)
 
     if code != 0:
-        click.echo(click.style("ERROR", fg="red") + f": Failed to create ./pack-temp, EXIT!")
-        return
+        click.echo(click.style("ERROR", fg="red") + f": Failed to create ./pack-temp, EXIT!", err=True)
+        raise click.Abort()
 
     is_failed = False
 
@@ -107,8 +107,8 @@ def pack(release, input, compress, version, output):
         if code != 0:
             is_failed = True
             
-            click.echo(click.style("ERROR", fg="red") + f": Failed to copy {path} to destination path, EXIT!")
-            break
+            click.echo(click.style("ERROR", fg="red") + f": Failed to copy {path} to destination path, EXIT!", err=True)
+            raise click.Abort()
 
     # 5. change the version in package.json
     if not is_failed:
@@ -136,7 +136,8 @@ def pack(release, input, compress, version, output):
 
         if code != 0:
             is_failed = True
-            click.echo(click.style("ERROR", fg="red") + f": Failed to zip {pack_temp_dir} to {package_dst_dir}.zip, EXIT!")
+            click.echo(click.style("ERROR", fg="red") + f": Failed to zip {pack_temp_dir} to {package_dst_dir}.zip, EXIT!", err=True)
+            raise click.Abort()
         
         shutil.move(f'./{new_name}.zip', f'{package_dst_dir}.zip')
 
@@ -146,8 +147,8 @@ def pack(release, input, compress, version, output):
     code = os.WEXITSTATUS(stats)
 
     if code != 0:
-        click.echo(click.style("ERROR", fg="red") + f": Failed to delete temporary ./pack-temp, EXIT!")
-        return
+        click.echo(click.style("ERROR", fg="red") + f": Failed to delete temporary ./pack-temp, EXIT!", err=True)
+        raise click.Abort()
 
 def map_os(os_):
     if os_ == 'darwin':

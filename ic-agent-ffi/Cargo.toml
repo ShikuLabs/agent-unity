@@ -15,7 +15,7 @@ image = "ghcr.io/shikulabs/aarch64-apple-darwin-cross:custom"
 
 [dependencies]
 # dfinity
-candid = "0.7"
+candid = "=0.7.14"
 ic-types = "0.3"
 ic-agent = "0.16"
 ic-utils = "0.16"
