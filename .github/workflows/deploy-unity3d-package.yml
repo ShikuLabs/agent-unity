@@ -1,0 +1,164 @@
+name: Deploy Unity3D Package
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-x86_64-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init project env
+        uses: ./.github/actions/init-proj-env
+      - name: build
+        run: ./build --release cross --arch=x86_64 --os=nix
+      - name: workaround for next step
+        run: touch target/empty.txt
+      - name: upload x86_64-linux dynamic-library
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-x86_64-unknown-linux-gnu
+          path: |
+            target/**/release/*.so
+            target/empty.txt
+          retention-days: 1
+
+  build-x86_64-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init project env
+        uses: ./.github/actions/init-proj-env
+      - name: build
+        run: ./build --release cross --arch=x86_64 --os=win
+      - name: workaround for next step
+        run: touch target/empty.txt
+      - name: upload x86_64-windows dynamic-library
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-x86_64-pc-windows-gnu
+          path: |
+            target/**/release/*.dll
+            target/empty.txt
+          retention-days: 1
+
+  build-x86_64-macos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init project env
+        uses: ./.github/actions/init-proj-env
+      - name: build
+        run: ./build --release cross --arch=x86_64 --os=osx
+      - name: workaround for next step
+        run: touch target/empty.txt
+      - name: upload x86_64-macos dynamic-library
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-x86_64-apple-darwin
+          path: |
+            target/**/release/*.dylib
+            target/empty.txt
+          retention-days: 1
+
+  build-aarch64-macos:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init project env
+        uses: ./.github/actions/init-proj-env
+      - name: build
+        run: ./build --release cross --arch=aarch64 --os=osx
+      - name: workaround for next step
+        run: touch target/empty.txt
+      - name: upload aarch64-macos dynamic-library
+        uses: actions/upload-artifact@v3
+        with:
+          name: cross-aarch64-apple-darwin
+          path: |
+            target/**/release/*.dylib
+            target/empty.txt
+          retention-days: 1
+
+  pack-to-unity3d-package:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-x86_64-linux, build-x86_64-windows, build-x86_64-macos, build-aarch64-macos]
+    runs-on: ubuntu-latest
+    outputs:
+      pkg_name: ${{ steps.pkg_info.outputs.PKG_NAME }}
+      pkg_sha1: ${{ steps.pkg_info.outputs.PKG_SHA1 }}
+      pkg_sha256: ${{ steps.pkg_info.outputs.PKG_SHA256 }}
+      pkg_version: ${{ steps.pkg_info.outputs.PKG_VERSION }}
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init script env
+        run: source ./init.sh
+      - name: download dynamic-libraries
+        uses: actions/download-artifact@v3
+        with:
+          path: target/
+      - name: pack to compressd unity3d package
+        run:  ./pack --release --input=cross --compress=zip
+      - name: generate output
+        run: |
+          echo "::set-output name=PKG_NAME::$(find . -type f -name '*.zip' -execdir basename -s '.zip' {} + | tr _ .)"
+          echo "::set-output name=PKG_SHA1::$(sha1sum *.zip | awk '{ print $1 }')"
+          echo "::set-output name=PKG_SHA256::$(sha256sum *.zip | awk '{ print $1 }')"
+          echo "::set-output name=PKG_VERSION::${{ github.ref_name }}"
+        id: pkg_info
+      - name: upload unity3d-package
+        uses: actions/upload-artifact@v3
+        with:
+          name: unity3d-package
+          path: ./*.zip
+
+  distribute-to-npm-branch:
+    needs: pack-to-unity3d-package
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+        with:
+          ref: upm
+      - name: download unity3d-package
+        uses: actions/download-artifact@v3
+        with:
+          name: unity3d-package
+      - name: unzip to current directory
+        run: unzip -o *.zip
+      - name: remove zip file
+        run: rm -rf *.zip
+      - name: commit to upm branch
+        uses: EndBug/add-and-commit@v9
+        with:
+          message: 🔖 ($UPM) bump version to `${{ needs.pack-to-unity3d-package.outputs.pkg_version }}`
+          committer_name: GitHub Actions
+          committer_email: actions@github.com
+
+  distribute-to-release-page:
+    needs: pack-to-unity3d-package
+    runs-on: ubuntu-latest
+    steps:
+      - name: download unity3d-package
+        uses: actions/download-artifact@v3
+        with:
+          name: unity3d-package
+      - name: publish to release page
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.pack-to-unity3d-package.outputs.pkg_name }}
+          tag_name: ${{ needs.pack-to-unity3d-package.outputs.pkg_version }}
+          body: '#️⃣ sha256: `${{ needs.pack-to-unity3d-package.outputs.pkg_sha256 }}`'
+          prerelease: true
+          files: |
+            *.zip

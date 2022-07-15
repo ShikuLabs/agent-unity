@@ -54,7 +54,8 @@ def native(ctx):
     code = os.WEXITSTATUS(stats)
 
     if code != 0:
-        click.echo(click.style("ERROR", fg="red") + f": Failed to native compile to target: {target}")
+        click.echo(click.style("ERROR", fg="red") + f": Failed to native compile to target: {target}", err=True)
+        raise click.Abort()
     else:
         click.echo(click.style("OK", fg="green") + f": Succeed to native compile to target: {target}")
 
@@ -82,9 +83,11 @@ def cross(ctx, arch, os_):
         if os_ == 'osx':
             target = "aarch64-apple-darwin"
         elif os_ == 'win':
-            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-pc-windows-gnu")
+            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-pc-windows-gnu", err=True)
+            raise click.Abort()
         elif os_ == 'nix':
-            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-unknown-linux-gnu")
+            click.echo(click.style("ERROR", fg="red") + ": Not support target: aarch64-unknown-linux-gnu", err=True)
+            raise click.Abort()
 
     if target != UNKNOWN_TARGET:
         target_dir = f'{project_dir}/target/cross-{target}'
@@ -95,7 +98,8 @@ def cross(ctx, arch, os_):
         code = os.WEXITSTATUS(stats)
 
         if code != 0:
-            click.echo(click.style("ERROR", fg="red") + f": Failed to cross compile to target: {target}")
+            click.echo(click.style("ERROR", fg="red") + f": Failed to cross compile to target: {target}", err=True)
+            raise click.Abort()
         else:
             click.echo(click.style("OK", fg="green") + f": Succeed to cross compile to target: {target}")
 
