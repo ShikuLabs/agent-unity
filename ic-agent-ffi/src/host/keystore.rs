@@ -41,12 +41,13 @@ pub struct HostKeyStore {
 }
 
 impl HostKeyStore {
+    #[allow(dead_code)]
     pub fn verify(self, pwd: &str) -> anyhow::Result<Self> {
         let pkcs8 = Self::decode_then_decrypt(self.encoded.clone(), pwd)?;
 
         let ed25519 = Ed25519KeyPair::from_pkcs8(pkcs8.as_slice())?;
         let identity = BasicIdentity::from_key_pair(ed25519);
-        let principal = identity.sender().map_err(|e| anyhow::Error::msg(e))?;
+        let principal = identity.sender().map_err(anyhow::Error::msg)?;
 
         Ok(Self {
             encoded: self.encoded,
@@ -65,7 +66,7 @@ impl HostKeyStore {
     pub fn from_pkcs8(name: &str, pwd: &str, pkcs8: &[u8]) -> anyhow::Result<Self> {
         let ed25519 = Ed25519KeyPair::from_pkcs8(pkcs8)?;
         let identity = BasicIdentity::from_key_pair(ed25519);
-        let principal = identity.sender().map_err(|e| anyhow::Error::msg(e))?;
+        let principal = identity.sender().map_err(anyhow::Error::msg)?;
 
         let encoded = Self::encrypt_then_encode(pkcs8, pwd)?;
 
@@ -85,6 +86,7 @@ impl HostKeyStore {
         Ok(identity)
     }
 
+    #[allow(dead_code)]
     pub fn change_password(&mut self, old_pwd: &str, new_pwd: &str) -> anyhow::Result<()> {
         let pkcs8 = Self::decode_then_decrypt(self.encoded.clone(), old_pwd)?;
         let encoded = Self::encrypt_then_encode(pkcs8.as_slice(), new_pwd)?;
@@ -94,8 +96,9 @@ impl HostKeyStore {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn principal(&self) -> Principal {
-        self.principal.clone()
+        self.principal
     }
 
     fn hash_password(pwd: &str) -> anyhow::Result<[u8; 32]> {
@@ -104,7 +107,7 @@ impl HostKeyStore {
 
         let pwd_hash: &[u8; 32] = pwd_hash.as_slice().try_into()?;
 
-        Ok(pwd_hash.clone())
+        Ok(*pwd_hash)
     }
 
     fn encrypt_then_encode(content: &[u8], pwd: &str) -> anyhow::Result<String> {
@@ -152,18 +155,22 @@ impl HostKeyStoreMeta {
         }
     }
 
+    #[allow(dead_code)]
     pub fn when_created(&self) -> DateTime<Utc> {
         self.when_created
     }
 
+    #[allow(dead_code)]
     pub fn store_syntax(&self) -> &str {
         &self.store_syntax
     }
 
+    #[allow(dead_code)]
     pub fn sig_scheme(&self) -> &str {
         &self.sig_scheme
     }
 
+    #[allow(dead_code)]
     pub fn encrypt_scheme(&self) -> (&str, &str) {
         (&self.encrypt_scheme.0, &self.encrypt_scheme.1)
     }

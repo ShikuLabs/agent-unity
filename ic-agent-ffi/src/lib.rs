@@ -18,14 +18,19 @@ use tokio::runtime;
 mod host;
 mod ic_helper;
 
+#[allow(clippy::upper_case_acronyms)]
 type LPSTR = *mut c_char;
+#[allow(clippy::upper_case_acronyms)]
 type LPCSTR = *const c_char;
+#[allow(clippy::upper_case_acronyms)]
 type JSON = LPCSTR;
+#[allow(clippy::upper_case_acronyms)]
 type Request = JSON;
 
+type LoggedInfoType = Mutex<HashMap<Principal, (LoggedReceipt, Arc<dyn Identity>)>>;
+
 lazy_static! {
-    static ref LOGGED_INFO: Mutex<HashMap::<Principal, (LoggedReceipt, Arc<dyn Identity>)>> =
-        Mutex::new(HashMap::new());
+    static ref LOGGED_INFO: LoggedInfoType = Mutex::new(HashMap::new());
 }
 
 #[repr(C)]
@@ -84,8 +89,12 @@ impl LoggedReceipt {
 }
 
 #[no_mangle]
-pub extern "C" fn create_keystore(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn create_keystore(req: Request) -> Response {
+    let rsp = CStr::from_ptr(req)
+        .to_str()
         .map_err(|e| e.into())
         .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
         .and_then(|val| match (&val["name"], &val["password"]) {
@@ -111,8 +120,12 @@ pub extern "C" fn create_keystore(req: Request) -> Response {
 ///     "password": ..
 /// }
 #[no_mangle]
-pub extern "C" fn login_by_host(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn login_by_host(req: Request) -> Response {
+    let rsp = CStr::from_ptr(req)
+        .to_str()
         .map_err(|e| e.into())
         .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
         .and_then(|val| match (&val["keyStore"], &val["password"]) {
@@ -138,10 +151,9 @@ pub extern "C" fn login_by_host(req: Request) -> Response {
                 .map_err(|e| anyhow!(e.to_string()))
         })
         .and_then(|(mut guard, receipt, identity)| {
-            match guard.insert(
-                receipt.principal.clone(),
-                (receipt.clone(), Arc::new(identity)),
-            ) {
+            let temp = guard.insert(receipt.principal, (receipt.clone(), Arc::new(identity)));
+
+            match temp {
                 Some(_) => Err(anyhow!(
                     "the account {} has been logged already",
                     receipt.principal
@@ -155,8 +167,12 @@ pub extern "C" fn login_by_host(req: Request) -> Response {
 }
 
 #[no_mangle]
-pub extern "C" fn get_logged_receipt(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn get_logged_receipt(req: Request) -> Response {
+    let rsp = CStr::from_ptr(req)
+        .to_str()
         .map_err(|e| e.into())
         .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
         .and_then(|val| {
@@ -168,12 +184,16 @@ pub extern "C" fn get_logged_receipt(req: Request) -> Response {
                 .map(|logged_info| (logged_info, principal))
                 .map_err(|e| anyhow!(e.to_string()))
         })
-        .and_then(|(guard, principal)| match guard.get(&principal) {
-            Some((receipt, _)) => serde_json::to_string(receipt).map_err(|e| e.into()),
-            _ => Err(anyhow!(
-                r#"cannot find the logged info by principal: {}"#,
-                principal
-            )),
+        .and_then(|(guard, principal)| {
+            let temp = guard.get(&principal);
+
+            match temp {
+                Some((receipt, _)) => serde_json::to_string(receipt).map_err(|e| e.into()),
+                _ => Err(anyhow!(
+                    r#"cannot find the logged info by principal: {}"#,
+                    principal
+                )),
+            }
         })
         .into();
 
@@ -195,8 +215,12 @@ pub extern "C" fn list_logged_receipt() -> Response {
 }
 
 #[no_mangle]
-pub extern "C" fn logout(req: Request) -> Response {
-    let rsp = unsafe { CStr::from_ptr(req).to_str() }
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn logout(req: Request) -> Response {
+    let rsp = CStr::from_ptr(req)
+        .to_str()
         .map_err(|e| e.into())
         .and_then(|str| serde_json::from_str::<Value>(str).map_err(|e| e.into()))
         .and_then(|val| {
@@ -208,9 +232,13 @@ pub extern "C" fn logout(req: Request) -> Response {
                 .map(|logged_info| (logged_info, principal))
                 .map_err(|e| anyhow!(e.to_string()))
         })
-        .and_then(|(mut guard, principal)| match guard.remove(&principal) {
-            Some(_) => Ok("success"),
-            _ => Err(anyhow!(r#"cannot logout by principal: {}"#, principal)),
+        .and_then(|(mut guard, principal)| {
+            let temp = guard.remove(&principal);
+
+            match temp {
+                Some(_) => Ok("success"),
+                _ => Err(anyhow!(r#"cannot logout by principal: {}"#, principal)),
+            }
         })
         .into();
 
@@ -218,9 +246,12 @@ pub extern "C" fn logout(req: Request) -> Response {
 }
 
 #[no_mangle]
-pub extern "C" fn ic_register_idl(canister_id: LPCSTR, candid_file: LPCSTR) -> Response {
-    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
-    let candid_file_r = unsafe { CStr::from_ptr(candid_file).to_str() };
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn ic_register_idl(canister_id: LPCSTR, candid_file: LPCSTR) -> Response {
+    let canister_id_r = CStr::from_ptr(canister_id).to_str();
+    let candid_file_r = CStr::from_ptr(candid_file).to_str();
 
     let args = match canister_id_r {
         Ok(canister_id) => match candid_file_r {
@@ -229,78 +260,78 @@ pub extern "C" fn ic_register_idl(canister_id: LPCSTR, candid_file: LPCSTR) -> R
         },
         Err(e) => Err(e),
     }
-    .map_err(|e| Error::from(e));
+    .map_err(Error::from);
 
-    let rsp = args
-        .and_then(|(canister_id, candid_file)| {
-            let canister_id = Principal::from_str(canister_id)
-                .context(format!("Failed to parse canister_id {}", canister_id))?;
+    args.and_then(|(canister_id, candid_file)| {
+        let canister_id = Principal::from_str(canister_id)
+            .context(format!("Failed to parse canister_id {}", canister_id))?;
 
-            let _ = register_idl(canister_id, candid_file.into())?;
+        register_idl(canister_id, candid_file.into())?;
 
-            Ok("()")
-        })
-        .into();
-
-    rsp
+        Ok("()")
+    })
+    .into()
 }
 
 #[no_mangle]
-pub extern "C" fn ic_remove_idl(canister_id: LPCSTR) -> Response {
-    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn ic_remove_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = CStr::from_ptr(canister_id).to_str().map_err(Error::from);
 
-    let rsp = canister_id_r
+    canister_id_r
         .and_then(|canister_id| {
             let canister_id = Principal::from_str(canister_id)
                 .context(format!("Failed to parse canister id {}", canister_id))?;
 
-            let candid_file = remove_idl(&canister_id)?.unwrap_or("null".into());
+            let candid_file = remove_idl(&canister_id)?.unwrap_or_else(|| "null".into());
 
             Ok(candid_file)
         })
-        .into();
-
-    rsp
+        .into()
 }
 
 #[no_mangle]
-pub extern "C" fn ic_get_idl(canister_id: LPCSTR) -> Response {
-    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() }.map_err(|e| Error::from(e));
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn ic_get_idl(canister_id: LPCSTR) -> Response {
+    let canister_id_r = CStr::from_ptr(canister_id).to_str().map_err(Error::from);
 
-    let rsp = canister_id_r
+    canister_id_r
         .and_then(|canister_id| {
             let canister_id = Principal::from_str(canister_id)
                 .context(format!("Failed to parse canister id {}", canister_id))?;
 
-            let candid_file = get_idl(&canister_id)?.unwrap_or("null".into());
+            let candid_file = get_idl(&canister_id)?.unwrap_or_else(|| "null".into());
 
             Ok(candid_file)
         })
-        .into();
-
-    rsp
+        .into()
 }
 
 #[no_mangle]
 pub extern "C" fn ic_list_idl() -> Response {
-    let rsp = list_idl()
+    list_idl()
         .and_then(|list| serde_json::to_string(&list).map_err(|e| e.into()))
-        .into();
-
-    rsp
+        .into()
 }
 
 #[no_mangle]
-pub extern "C" fn ic_query_sync(
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn ic_query_sync(
     caller: LPCSTR,
     canister_id: LPCSTR,
     method_name: LPCSTR,
     args_raw: LPCSTR,
 ) -> Response {
-    let caller_r = unsafe { CStr::from_ptr(caller).to_str() };
-    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
-    let method_name_r = unsafe { CStr::from_ptr(method_name).to_str() };
-    let args_raw_r = unsafe { CStr::from_ptr(args_raw).to_str() };
+    let caller_r = CStr::from_ptr(caller).to_str();
+    let canister_id_r = CStr::from_ptr(canister_id).to_str();
+    let method_name_r = CStr::from_ptr(method_name).to_str();
+    let args_raw_r = CStr::from_ptr(args_raw).to_str();
 
     let args = match caller_r {
         Ok(caller) => match canister_id_r {
@@ -315,38 +346,38 @@ pub extern "C" fn ic_query_sync(
         },
         Err(e) => Err(e),
     }
-    .map_err(|e| Error::from(e));
+    .map_err(Error::from);
 
-    let rsp = args
-        .and_then(|(caller, canister_id, method_name, args_raw)| {
-            let caller = Principal::from_str(caller)
-                .context(format!("Failed to parse caller {}", caller))?;
-            let canister_id = Principal::from_str(canister_id)
-                .context(format!("Failed to parse canister_id {}", canister_id))?;
+    args.and_then(|(caller, canister_id, method_name, args_raw)| {
+        let caller =
+            Principal::from_str(caller).context(format!("Failed to parse caller {}", caller))?;
+        let canister_id = Principal::from_str(canister_id)
+            .context(format!("Failed to parse canister_id {}", canister_id))?;
 
-            let runtime = runtime::Runtime::new()?;
+        let runtime = runtime::Runtime::new()?;
 
-            let fut = query(&caller, &canister_id, method_name, args_raw);
-            let rst_idl = runtime.block_on(fut)?;
+        let fut = query(&caller, &canister_id, method_name, args_raw);
+        let rst_idl = runtime.block_on(fut)?;
 
-            Ok(rst_idl.to_string())
-        })
-        .into();
-
-    rsp
+        Ok(rst_idl.to_string())
+    })
+    .into()
 }
 
 #[no_mangle]
-pub extern "C" fn ic_update_sync(
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn ic_update_sync(
     caller: LPCSTR,
     canister_id: LPCSTR,
     method_name: LPCSTR,
     args_raw: LPCSTR,
 ) -> Response {
-    let caller_r = unsafe { CStr::from_ptr(caller).to_str() };
-    let canister_id_r = unsafe { CStr::from_ptr(canister_id).to_str() };
-    let method_name_r = unsafe { CStr::from_ptr(method_name).to_str() };
-    let args_raw_r = unsafe { CStr::from_ptr(args_raw).to_str() };
+    let caller_r = CStr::from_ptr(caller).to_str();
+    let canister_id_r = CStr::from_ptr(canister_id).to_str();
+    let method_name_r = CStr::from_ptr(method_name).to_str();
+    let args_raw_r = CStr::from_ptr(args_raw).to_str();
 
     let args = match caller_r {
         Ok(caller) => match canister_id_r {
@@ -361,30 +392,30 @@ pub extern "C" fn ic_update_sync(
         },
         Err(e) => Err(e),
     }
-    .map_err(|e| Error::from(e));
+    .map_err(Error::from);
 
-    let rsp = args
-        .and_then(|(caller, canister_id, method_name, args_raw)| {
-            let caller = Principal::from_str(caller)
-                .context(format!("Failed to parse caller {}", caller))?;
-            let canister_id = Principal::from_str(canister_id)
-                .context(format!("Failed to parse canister_id {}", canister_id))?;
+    args.and_then(|(caller, canister_id, method_name, args_raw)| {
+        let caller =
+            Principal::from_str(caller).context(format!("Failed to parse caller {}", caller))?;
+        let canister_id = Principal::from_str(canister_id)
+            .context(format!("Failed to parse canister_id {}", canister_id))?;
 
-            let runtime = runtime::Runtime::new()?;
+        let runtime = runtime::Runtime::new()?;
 
-            let fut = update(&caller, &canister_id, method_name, args_raw);
-            let rst_idl = runtime.block_on(fut)?;
+        let fut = update(&caller, &canister_id, method_name, args_raw);
+        let rst_idl = runtime.block_on(fut)?;
 
-            Ok(rst_idl.to_string())
-        })
-        .into();
-
-    rsp
+        Ok(rst_idl.to_string())
+    })
+    .into()
 }
 
 #[no_mangle]
-pub extern "C" fn free_rsp(rsp: Response) {
-    let data = unsafe { CString::from_raw(rsp.ptr) };
+/// # Safety
+///
+/// Workaround for `cargo clippy`
+pub unsafe extern "C" fn free_rsp(rsp: Response) {
+    let data = CString::from_raw(rsp.ptr);
     drop(data);
 }
 

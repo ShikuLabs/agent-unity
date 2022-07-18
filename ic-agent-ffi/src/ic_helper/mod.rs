@@ -7,6 +7,7 @@ use ic_types::Principal;
 use ic_utils::interfaces::management_canister::builders::{CanisterInstall, CanisterSettings};
 use ic_utils::interfaces::management_canister::MgmtMethod;
 use lazy_static::lazy_static;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -24,7 +25,7 @@ pub fn register_idl(canister_id: Principal, idl_file: String) -> Result<()> {
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
         .and_then(|mut lookup| {
-            if lookup.contains_key(&canister_id) != true {
+            if let Entry::Vacant(_e) = lookup.entry(canister_id) {
                 lookup.insert(canister_id, idl_file);
 
                 Ok(())
@@ -38,29 +39,21 @@ pub fn remove_idl(canister_id: &Principal) -> Result<Option<String>> {
     IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
-        .and_then(|mut lookup| {
-            let candid_file = lookup.remove(canister_id);
-
-            Ok(candid_file)
-        })
+        .map(|mut lookup| lookup.remove(canister_id))
 }
 
 pub fn get_idl(canister_id: &Principal) -> Result<Option<String>> {
     IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
-        .and_then(|lookup| {
-            let candid_file = lookup.get(canister_id).cloned();
-
-            Ok(candid_file)
-        })
+        .map(|lookup| lookup.get(canister_id).cloned())
 }
 
 pub fn list_idl() -> Result<Vec<Principal>> {
     IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
-        .and_then(|lookup| Ok(lookup.keys().map(|cid| cid.clone()).collect()))
+        .map(|lookup| lookup.keys().copied().collect())
 }
 
 pub async fn query(
@@ -77,12 +70,12 @@ pub async fn query(
     let args_blb = blob_from_raw(args_raw, &ty_env, &method_sig)?;
     // 4. get effective canister id
     let effective_canister_id =
-        get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
+        get_effective_canister_id(method_name, args_blb.as_slice(), canister_id)?;
     // 5. create agent
     let agent = create_agent(caller, IC_MAIN_NET)?;
     // 6. construct transaction then call it
     let rst_blb = agent
-        .query(&canister_id, method_name)
+        .query(canister_id, method_name)
         .expire_after(ONE_HALF_MINUS)
         .with_arg(args_blb)
         .with_effective_canister_id(effective_canister_id)
@@ -112,12 +105,12 @@ pub async fn update(
     let args_blb = blob_from_raw(args_raw, &ty_env, &method_sig)?;
     // 4. get effective canister id
     let effective_canister_id =
-        get_effective_canister_id(method_name, args_blb.as_slice(), &canister_id)?;
+        get_effective_canister_id(method_name, args_blb.as_slice(), canister_id)?;
     // 5. create agent
     let agent = create_agent(caller, IC_MAIN_NET)?;
     // 6. construct transaction then call it
     let rst_blb = agent
-        .update(&canister_id, method_name)
+        .update(canister_id, method_name)
         .with_arg(args_blb)
         .with_effective_canister_id(effective_canister_id)
         .call_and_wait(
@@ -140,12 +133,16 @@ fn check_candid_file(canister_id: &Principal) -> Result<(TypeEnv, Option<Type>)>
     let idl_file = IDL_LOOKUP
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
-        .and_then(|guard| match guard.get(canister_id) {
-            Some(idl_file) => Ok(idl_file.clone()),
-            None => bail!(
-                "Failed to find Candid file by {}, did you register before?",
-                canister_id
-            ),
+        .and_then(|guard| {
+            let temp = guard.get(canister_id);
+
+            match temp {
+                Some(idl_file) => Ok(idl_file.clone()),
+                None => bail!(
+                    "Failed to find Candid file by {}, did you register before?",
+                    canister_id
+                ),
+            }
         })?;
 
     let ast = idl_file
@@ -167,7 +164,7 @@ fn get_method_signature(
     match actor {
         Some(actor) => {
             let method_sig = ty_env
-                .get_method(&actor, method_name)
+                .get_method(actor, method_name)
                 .with_context(|| format!("Failed to get method: {}", method_name))?
                 .clone();
 
@@ -191,14 +188,11 @@ fn blob_from_raw(args_raw: &str, ty_env: &TypeEnv, meth_sig: &Function) -> Resul
 }
 
 fn idl_from_blob(args_blb: &[u8], ty_env: &TypeEnv, meth_sig: &Function) -> Result<IDLArgs> {
-    let args_idl =
-        IDLArgs::from_bytes_with_types(args_blb, ty_env, &meth_sig.rets).context(format!(
-            "Failed to parse blob \"{}\" with method signature {}",
-            hex::encode(args_blb),
-            meth_sig
-        ));
-
-    args_idl
+    IDLArgs::from_bytes_with_types(args_blb, ty_env, &meth_sig.rets).context(format!(
+        "Failed to parse blob \"{}\" with method signature {}",
+        hex::encode(args_blb),
+        meth_sig
+    ))
 }
 
 fn get_effective_canister_id(
@@ -209,7 +203,7 @@ fn get_effective_canister_id(
     let is_management_canister = Principal::management_canister() == *canister_id;
 
     if !is_management_canister {
-        Ok(canister_id.clone())
+        Ok(*canister_id)
     } else {
         let method_name = MgmtMethod::from_str(method_name).with_context(|| {
             format!(
@@ -263,22 +257,24 @@ fn create_agent(principal: &Principal, ic_net: &str) -> Result<Agent> {
     let identity = super::LOGGED_INFO
         .lock()
         .map_err(|e| anyhow!(e.to_string()))
-        .and_then(|guard| match guard.get(principal) {
-            Some((_, identity)) => Ok(identity.clone()),
-            None => bail!(
-                "Failed to find login info about {}, did you logged?",
-                principal
-            ),
+        .and_then(|guard| {
+            let temp = guard.get(principal);
+
+            match temp {
+                Some((_, identity)) => Ok(identity.clone()),
+                None => bail!(
+                    "Failed to find login info about {}, did you logged?",
+                    principal
+                ),
+            }
         })?;
 
     let transport = ReqwestHttpReplicaV2Transport::create(ic_net)
         .with_context(|| format!("Failed to create transport from \"{}\"", ic_net))?;
 
-    let agent = Agent::builder()
+    Agent::builder()
         .with_transport(transport)
         .with_arc_identity(identity)
         .build()
-        .context(format!("Failed to create agent from {}", principal));
-
-    agent
+        .context(format!("Failed to create agent from {}", principal))
 }
