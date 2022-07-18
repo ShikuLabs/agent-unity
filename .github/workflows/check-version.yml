@@ -11,4 +11,6 @@ jobs:
       - name: init script env
         run: source ./init.sh
       - name: run check-version script
-        run: python ./scripts/check-version.py
+        run: |
+          chmod u+x ./scripts/check-version.py
+          ./scripts/check-version.py

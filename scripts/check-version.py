@@ -27,7 +27,7 @@ flag_a = cargo_version == package_version
 
 if not flag_a:
     click.echo(click.style("ERROR ", fg="red") + f'package({package_version}) != cargo({cargo_version})', file=sys.stderr)
-    raise click.Abort()
+    exit(2)
 
 branch_name = os.popen('git branch --show-current').read().replace('\n', '')
 is_version = re.match("[0-9]*\.[0-9]*\..*", branch_name) != None
@@ -40,4 +40,4 @@ flag_b = branch_name == cargo_version and branch_name == package_version
 
 if not flag_a:
     click.echo(click.style("ERROR ", fg="red") + f'branch({branch_name}) != {package_version}', file=sys.stderr)
-    raise click.Abort()
+    exit(2)
