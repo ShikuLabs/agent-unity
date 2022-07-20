@@ -1,4 +1,4 @@
-name: Deploy Unity3D Package
+name: Check Project Version
 
 on: pull_request
 
