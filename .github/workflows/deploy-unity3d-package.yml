@@ -2,8 +2,6 @@ name: Deploy Unity3D Package
 
 on:
   push:
-    branches:    
-      - 'master'
     tags:
       - '*.*.*'
 
