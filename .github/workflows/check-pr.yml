@@ -1,0 +1,32 @@
+name: Check PR
+
+on: pull_request
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: init script env
+        run: source ./init.sh
+      - name: run check-version script
+        run: |
+          chmod u+x ./scripts/check-version.py
+          ./scripts/check-version.py
+
+  cargo-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: check rust code format
+        run: cargo fmt --manifest-path ic-agent-ffi/Cargo.toml --check
+
+  cargo-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out latest commit
+        uses: actions/checkout@v3
+      - name: lint rust code
+        run: cd ./ic-agent-ffi/ && cargo clippy -- -D warnings

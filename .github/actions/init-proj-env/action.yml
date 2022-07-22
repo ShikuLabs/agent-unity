@@ -1,0 +1,12 @@
+name: "Init Project Environment"
+description: "Init the project environment for running scripts"
+
+runs:
+  using: "composite"
+  steps:
+    - name: install cross-rs
+      run: cargo install cross --git https://github.com/cross-rs/cross
+      shell: bash
+    - name: init script env
+      run: source ./init.sh
+      shell: bash

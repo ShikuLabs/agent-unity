@@ -46,8 +46,8 @@ def publish(ctx, release, input, compress, version, output):
         code = os.WEXITSTATUS(stats)
         
         if code != 0:
-            click.echo(click.style("ERROR", fg="red") + f": Failed to run build {mode} native!")
-            return
+            click.echo(click.style("ERROR", fg="red") + f": Failed to run build {mode} native!", err=True)
+            raise click.Abort()
 
     def do_cross():
         # build
@@ -66,8 +66,8 @@ def publish(ctx, release, input, compress, version, output):
             code = os.WEXITSTATUS(stats)
         
             if code != 0:
-                click.echo(click.style("ERROR", fg="red") + f": Failed to run build {mode} native!")
-                return
+                click.echo(click.style("ERROR", fg="red") + f": Failed to run build {mode} native!", err=True)
+                raise click.Abort()
 
     if input == 'native': do_native()
     elif input == 'cross': do_cross()
@@ -81,8 +81,8 @@ def publish(ctx, release, input, compress, version, output):
     code = os.WEXITSTATUS(stats)
     
     if code != 0:
-        click.echo(click.style("ERROR", fg="red") + f": Failed to pack {mode} native!")
-        return
+        click.echo(click.style("ERROR", fg="red") + f": Failed to pack {mode} native!", err=True)
+        raise click.Abort()
     
 if __name__ == '__main__':
     publish()
