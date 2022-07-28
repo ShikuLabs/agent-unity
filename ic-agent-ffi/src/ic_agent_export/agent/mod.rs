@@ -1,3 +1,5 @@
+mod builder;
+
 use crate::{Response, LPCSTR};
 use libc::c_void;
 
