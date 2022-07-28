@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use tokio::runtime;
 
 mod host;
+mod ic_agent_export;
 mod ic_helper;
 
 #[allow(clippy::upper_case_acronyms)]
