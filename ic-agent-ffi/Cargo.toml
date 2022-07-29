@@ -1,7 +1,7 @@
 [package]
 name = "ic-agent-ffi"
 description = "The backend of agent-unity"
-version = "0.1.0-beta-pre"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
