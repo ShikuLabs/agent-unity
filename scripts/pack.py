@@ -29,11 +29,12 @@ import pathlib
 
 @click.command()
 @click.option('--release/--no-release', default=False)
+@click.option('--dev/--no-dev', default=False)
 @click.option('--input', type=click.Choice(['native', 'cross', 'all'], case_sensitive=False), default='native')
 @click.option('--compress', type=click.Choice(['none', 'zip'], case_sensitive=False), default='none')
 @click.option('--version', required=True, type=str, default='none')
 @click.option('--output', required=True, type=str, default='./')
-def pack(release, input, compress, version, output):
+def pack(release, dev, input, compress, version, output):
     if not os.path.isdir(output):
         click.echo(click.style("ERROR", fg="red") + f": Wrong option --output={output}, should be directory!", err=True)
         raise click.Abort()
@@ -78,7 +79,11 @@ def pack(release, input, compress, version, output):
     pack_temp_dir = f'{project_dir}/pack-temp'
     if os.path.isdir(pack_temp_dir):
         shutil.rmtree(pack_temp_dir)
-    cmd = f'cp -r {package_dir} {pack_temp_dir}'
+    
+    if dev == False:
+        cmd = f'cp -r {package_dir} {pack_temp_dir}'
+    else:
+        cmd = f'cp -rs {package_dir} {pack_temp_dir}'
     stats = os.system(cmd)
     code = os.WEXITSTATUS(stats)
 
@@ -128,7 +133,7 @@ def pack(release, input, compress, version, output):
     package_dst_dir = f'{output}/{new_name}'
 
     if compress == 'none':
-        shutil.copytree(pack_temp_dir, package_dst_dir)
+        shutil.move(pack_temp_dir, package_dst_dir)
     elif compress == 'zip':
         cmd = f'cd {pack_temp_dir} && zip -r ../{new_name}.zip *'
         stats = os.system(cmd)
@@ -141,14 +146,14 @@ def pack(release, input, compress, version, output):
         
         shutil.move(f'./{new_name}.zip', f'{package_dst_dir}.zip')
 
-    # 7. delete `./pack-temp`
-    cmd = f'rm -rf {pack_temp_dir}'
-    stats = os.system(cmd)
-    code = os.WEXITSTATUS(stats)
+        # 7. delete `./pack-temp`
+        cmd = f'rm -rf {pack_temp_dir}'
+        stats = os.system(cmd)
+        code = os.WEXITSTATUS(stats)
 
-    if code != 0:
-        click.echo(click.style("ERROR", fg="red") + f": Failed to delete temporary ./pack-temp, EXIT!", err=True)
-        raise click.Abort()
+        if code != 0:
+            click.echo(click.style("ERROR", fg="red") + f": Failed to delete temporary ./pack-temp, EXIT!", err=True)
+            raise click.Abort()
 
 def map_os(os_):
     if os_ == 'darwin':
