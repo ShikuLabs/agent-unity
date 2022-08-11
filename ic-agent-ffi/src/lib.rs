@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use ic_agent::Identity;
 use ic_types::Principal;
 use lazy_static::lazy_static;
-use libc::c_char;
+use libc::{c_char, c_void};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -15,9 +15,9 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tokio::runtime;
 
+mod ffi;
 mod host;
 mod ic_helper;
-mod ffi;
 
 #[allow(clippy::upper_case_acronyms)]
 type LPSTR = *mut c_char;
@@ -34,6 +34,17 @@ lazy_static! {
     static ref LOGGED_INFO: LoggedInfoType = Mutex::new(HashMap::new());
 }
 
+pub fn create_string_to_cs<S: Into<String>>(text: S) -> *mut c_char {
+    let cstring = CString::new(text.into()).unwrap();
+
+    cstring.into_raw()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn free_string_to_cs(ptr: *mut c_char) {
+    drop(CString::from_raw(ptr));
+}
+
 #[repr(C)]
 pub struct Response {
     pub ptr: LPSTR,
@@ -41,10 +52,9 @@ pub struct Response {
 }
 
 #[repr(C)]
-pub struct OutValue<T> {
-    pub v: T,
+pub struct OutValue {
+    pub ptr: *mut c_void,
     pub is_err: bool,
-    pub err_ptr: LPCSTR,
 }
 
 impl Response {
