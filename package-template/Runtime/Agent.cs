@@ -5,8 +5,103 @@ using Newtonsoft.Json.Serialization;
 using UnityEngine;
 
 namespace IC {
+    [StructLayout(LayoutKind.Sequential)]
+    readonly struct OutValue
+    {
+        public readonly IntPtr Ptr;
+        [MarshalAs(UnmanagedType.I1)]
+        public readonly bool IsErr;
+    }
+
+    static class Helper {
+        [DllImport("ic-agent")]
+        public static extern IntPtr free_string_to_cs(IntPtr ptr);
+    }
+
+    public class Principal {
+        [DllImport("ic-agent")]
+        private static extern IntPtr principal_management_canister();
+
+        [DllImport("ic-agent")]
+        private static extern IntPtr principal_self_authenticating(IntPtr ptr, UInt32 len);
+        
+        [DllImport("ic-agent")]
+        private static extern IntPtr principal_anonymous();
+
+        [DllImport("ic-agent")]
+        private static extern OutValue principal_from_text([MarshalAs(UnmanagedType.LPStr)] string text);
+
+        [DllImport("ic-agent")]
+        private static extern IntPtr principal_to_text(IntPtr self);
+
+        [DllImport("ic-agent")]
+        private static extern void principal_free(IntPtr self);
+
+        private IntPtr ptr;
+
+        private Principal(IntPtr ptr) {
+            this.ptr = ptr;
+        }
+
+        ~Principal() {
+            principal_free(this.ptr);
+        }
+
+        public string ToText() {
+            var strPtr = principal_to_text(this.ptr);
+
+            var str = Marshal.PtrToStringAnsi(strPtr);
+            Helper.free_string_to_cs(strPtr);
+
+            if (str == null) throw new Exception("RError: string from rust-lib is null");
+
+            return str;
+        }
+
+        public static Principal FromText(string text) {
+            var ov = principal_from_text(text);
+
+            if (ov.IsErr) {
+                var errStr = Marshal.PtrToStringAnsi(ov.Ptr);
+                throw new Exception(errStr);
+            }
+            
+            return new Principal(ov.Ptr);
+        }
+
+        public static Principal ManagementCanister() {
+            var ptr = principal_management_canister();
+
+            return new Principal(ptr);
+        }
+
+        public static Principal SelfAuthenticating(byte[] publicKey) {
+            uint len = (uint)publicKey.Length;
+            GCHandle pinnedArr = GCHandle.Alloc(publicKey, GCHandleType.Pinned);
+            IntPtr pkPtr = pinnedArr.AddrOfPinnedObject();
+
+            var ptr = principal_self_authenticating(pkPtr, len);
+
+            pinnedArr.Free();
+
+            return new Principal(ptr);
+        }
+
+        public static Principal Anonymous() {
+            var ptr = principal_anonymous();
+
+            return new Principal(ptr);
+        }
+    }
+
     public static class Agent
     {
+        [DllImport("ic-agent")]
+        public static extern IntPtr Principal_management_canister();
+
+        [DllImport("ic-agent")]
+        public static extern IntPtr Principal_free(IntPtr self);
+
         [DllImport("ic-agent")]
         private static extern Response create_keystore([MarshalAs(UnmanagedType.LPStr)] string req);
 
