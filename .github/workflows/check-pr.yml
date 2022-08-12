@@ -23,10 +23,10 @@ jobs:
       - name: check rust code format
         run: cargo fmt --manifest-path ic-agent-ffi/Cargo.toml --check
 
-  cargo-clippy:
+  cargo-check:
     runs-on: ubuntu-latest
     steps:
       - name: check out latest commit
         uses: actions/checkout@v3
       - name: lint rust code
-        run: cd ./ic-agent-ffi/ && cargo clippy -- -D warnings
+        run: cd ./ic-agent-ffi/ && cargo check
