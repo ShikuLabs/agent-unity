@@ -58,18 +58,18 @@ pub extern "C" fn principal_management_canister(
 /// * `out_arr` - A pointer points to a chunk of memory allocated outside.
 /// * `out_arr_len` - The size(in bytes) of data written into the memory to which `out_arr` points.
 /// * `arr_size` - The size(in bytes) of memory to which `out_arr` points.
-/// * `in_public_key` - The public key represented as u8 array.
+/// * `public_key` - The public key represented as u8 array.
 /// * `public_key_size` - The length of public key.
 #[no_mangle]
 pub extern "C" fn principal_self_authenticating(
     out_arr: *mut u8,
     out_arr_len: *mut u32,
     arr_size: u32,
-    in_public_key: *const u8,
+    public_key: *const u8,
     public_key_size: u32,
 ) -> StateCode {
     let public_key =
-        unsafe { std::slice::from_raw_parts(in_public_key, public_key_size as usize) };
+        unsafe { std::slice::from_raw_parts(public_key, public_key_size as usize) };
     let principal = Principal::self_authenticating(public_key);
 
     let arr = principal.as_slice();
@@ -118,8 +118,8 @@ pub extern "C" fn principal_anonymous(
 ///
 /// # Arguments
 ///
-/// * `in_bytes` - A pointer points to a chunk of memory that stores data waiting for conversion.
-/// * `bytes_size` - The size(in bytes) of memory to which `in_bytes` points..
+/// * `bytes` - A pointer points to a chunk of memory that stores data waiting for conversion.
+/// * `bytes_size` - The size(in bytes) of memory to which `bytes` points..
 /// * `out_arr` - A pointer points to a chunk of memory allocated outside.
 /// * `out_arr_len` - The size(in bytes) of data written into the memory to which `out_arr` points.
 /// * `arr_size` - The size(in bytes) of memory to which `out_arr` points.
@@ -127,7 +127,7 @@ pub extern "C" fn principal_anonymous(
 /// * `err_info_size` - The size(in bytes) of memory to which `out_err_info` points.
 #[no_mangle]
 pub extern "C" fn principal_from_bytes(
-    in_bytes: *const u8,
+    bytes: *const u8,
     bytes_size: u32,
     out_arr: *mut u8,
     out_arr_len: *mut u32,
@@ -135,7 +135,7 @@ pub extern "C" fn principal_from_bytes(
     out_err_info: *mut c_char,
     err_info_size: u32,
 ) -> StateCode {
-    let slice = unsafe { std::slice::from_raw_parts(in_bytes, bytes_size as usize) };
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_size as usize) };
 
     match Principal::try_from_slice(slice) {
         Ok(principal) => {
@@ -174,7 +174,7 @@ pub extern "C" fn principal_from_bytes(
 ///
 /// # Arguments
 ///
-/// * `in_text` - A C Style String.
+/// * `text` - A C Style String.
 /// * `out_arr` - A pointer points to a chunk of memory allocated outside.
 /// * `out_arr_len` - The size(in bytes) of data written into the memory to which `out_arr` points.
 /// * `arr_size` - The size(in bytes) of memory to which `out_arr` points.
@@ -182,14 +182,14 @@ pub extern "C" fn principal_from_bytes(
 /// * `err_info_size` - The size(in bytes) of memory to which `out_err_info` points.
 #[no_mangle]
 pub extern "C" fn principal_from_text(
-    in_text: *const c_char,
+    text: *const c_char,
     out_arr: *mut u8,
     out_arr_len: *mut u32,
     arr_size: u32,
     out_err_info: *mut c_char,
     err_info_size: u32,
 ) -> StateCode {
-    let text = unsafe { CStr::from_ptr(in_text).to_str().map_err(AnyErr::from) };
+    let text = unsafe { CStr::from_ptr(text).to_str().map_err(AnyErr::from) };
 
     let principal = text.and_then(|text| Principal::from_text(text).map_err(AnyErr::from));
 
@@ -230,21 +230,21 @@ pub extern "C" fn principal_from_text(
 ///
 /// # Arguments
 ///
-/// * `in_bytes` - A pointer points to a chunk of memory that stores data waiting for conversion.
-/// * `bytes_size` - The size(in bytes) of memory to which `in_bytes` points..
+/// * `bytes` - A pointer points to a chunk of memory that stores data waiting for conversion.
+/// * `bytes_size` - The size(in bytes) of memory to which `bytes` points..
 /// * `out_text` - A pointer points to a chunk of memory allocated outside.
 /// * `out_err_info` - A pointer points to a chunk of memory allocated outside which is used to store error information.
 /// * `err_info_size` - The size(in bytes) of memory to which `out_err_info` points.
 #[no_mangle]
 pub extern "C" fn principal_to_text(
-    in_bytes: *const u8,
+    bytes: *const u8,
     bytes_size: u32,
     out_text: *mut c_char,
     out_text_size: u32,
     out_err_info: *mut c_char,
     err_info_size: u32,
 ) -> StateCode {
-    let slice = unsafe { std::slice::from_raw_parts(in_bytes, bytes_size as usize) };
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_size as usize) };
 
     let principal = Principal::try_from_slice(slice).map_err(AnyErr::from);
     let principal_text = principal
@@ -414,7 +414,7 @@ mod tests {
         // Allocation
         let (out_arr, out_arr_len) = unsafe { alloc_help_vars::<u8>(ARR_SIZE) };
         let out_err_info = unsafe { libc::malloc(ERR_INFO_SIZE) as *mut c_char };
-        let (in_bytes, bytes_size) = unsafe {
+        let (bytes, bytes_size) = unsafe {
             let _1 = libc::malloc(BYTES.len()) as *mut u8;
             let _2 = BYTES.len();
 
@@ -425,7 +425,7 @@ mod tests {
 
         assert_eq!(
             principal_from_bytes(
-                in_bytes,
+                bytes,
                 bytes_size as u32,
                 out_arr,
                 out_arr_len,
@@ -451,7 +451,7 @@ mod tests {
 
             libc::free(out_err_info as *mut c_void);
 
-            libc::free(in_bytes as *mut c_void);
+            libc::free(bytes as *mut c_void);
         }
     }
 
@@ -463,7 +463,7 @@ mod tests {
         // Allocation
         let (out_arr, out_arr_len) = unsafe { alloc_help_vars::<u8>(ARR_SIZE) };
         let out_err_info = unsafe { libc::malloc(ERR_INFO_SIZE) as *mut c_char };
-        let in_text = unsafe {
+        let text = unsafe {
             let text = libc::malloc(ANONYMOUS_TEXT.len()) as *mut u8;
 
             std::ptr::copy(ANONYMOUS_TEXT.as_ptr(), text, ANONYMOUS_TEXT.len());
@@ -473,7 +473,7 @@ mod tests {
 
         assert_eq!(
             principal_from_text(
-                in_text,
+                text,
                 out_arr,
                 out_arr_len,
                 ARR_SIZE as u32,
@@ -498,7 +498,7 @@ mod tests {
 
             libc::free(out_err_info as *mut c_void);
 
-            libc::free(in_text as *mut c_void);
+            libc::free(text as *mut c_void);
         }
     }
 
@@ -515,7 +515,7 @@ mod tests {
             (_1, _2)
         };
         let out_err_info = unsafe { libc::malloc(ERR_INFO_SIZE) as *mut c_char };
-        let in_bytes = unsafe {
+        let bytes = unsafe {
             let bytes = libc::malloc(ANONYMOUS_BYTES.len()) as *mut u8;
 
             std::ptr::copy(ANONYMOUS_BYTES.as_ptr(), bytes, ANONYMOUS_BYTES.len());
@@ -525,7 +525,7 @@ mod tests {
 
         assert_eq!(
             principal_to_text(
-                in_bytes,
+                bytes,
                 ANONYMOUS_BYTES.len() as u32,
                 out_text,
                 out_text_size as u32,
@@ -548,7 +548,7 @@ mod tests {
 
             libc::free(out_err_info as *mut c_void);
 
-            libc::free(in_bytes as *mut c_void);
+            libc::free(bytes as *mut c_void);
         }
     }
 
