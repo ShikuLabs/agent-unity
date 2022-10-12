@@ -240,7 +240,7 @@ pub extern "C" fn principal_to_text(
     bytes: *const u8,
     bytes_size: u32,
     out_text: *mut c_char,
-    out_text_size: u32,
+    text_size: u32,
     out_err_info: *mut c_char,
     err_info_size: u32,
 ) -> StateCode {
@@ -254,7 +254,7 @@ pub extern "C" fn principal_to_text(
 
     match principal_text {
         Ok(principal_text) => {
-            if principal_text.len() > out_text_size as usize {
+            if principal_text.len() > text_size as usize {
                 return SC_DATA_OVERFLOW;
             }
 
@@ -508,7 +508,7 @@ mod tests {
         const ANONYMOUS_BYTES: [u8; 1] = [0x04u8];
 
         // Allocation
-        let (out_text, out_text_size) = unsafe {
+        let (out_text, text_size) = unsafe {
             const _2: usize = 256;
             let _1 = libc::malloc(_2) as *mut c_char;
 
@@ -528,7 +528,7 @@ mod tests {
                 bytes,
                 ANONYMOUS_BYTES.len() as u32,
                 out_text,
-                out_text_size as u32,
+                text_size as u32,
                 out_err_info,
                 ERR_INFO_SIZE as u32
             ),
