@@ -2,26 +2,30 @@
 //!
 //! An `FFI Wrapper` for [`Principal`].
 
-use anyhow::Error as AnyErr;
+use crate::{AnyErr, CopyTo, StateCode};
 use ic_types::principal::Principal;
 use libc::c_char;
 use std::ffi::{CStr, CString};
-use std::fmt::Display;
-use std::string::ToString;
 
-// TODO: Reduce the code amount by eliminating the duplication.
 // TODO: More Unit-Tests.
 
-pub type StateCode = i32;
+type PType = (*mut u8, *mut u32, u32);
+impl<T: AsRef<[u8]>> CopyTo<PType> for T {
+    fn copy_to(self, (out_arr, out_arr_len, arr_size): PType) -> StateCode {
+        let arr = self.as_ref();
 
-/// Ok
-pub const SC_OK: i32 = 0;
-/// The data copied to the memory overflows.
-pub const SC_DATA_OVERFLOW: i32 = -1;
-/// The function was terminated by an internal error.
-pub const SC_INTERNAL_ERR: i32 = -2;
-/// The error info copied to the memory overflows.
-pub const SC_ERR_INFO_OVERFLOW: i32 = -3;
+        if arr.len() > arr_size as usize {
+            return StateCode::DataOverflow;
+        }
+
+        unsafe {
+            std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
+            *out_arr_len = arr.len() as u32;
+        }
+
+        StateCode::Ok
+    }
+}
 
 /// Construct the [`Principal`] of management canister.
 ///
@@ -36,19 +40,7 @@ pub extern "C" fn principal_management_canister(
     out_arr_len: *mut u32,
     arr_size: u32,
 ) -> StateCode {
-    let management_canister = Principal::management_canister();
-    let arr = management_canister.as_slice();
-
-    if arr.len() > arr_size as usize {
-        return SC_DATA_OVERFLOW;
-    }
-
-    unsafe {
-        std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
-        *out_arr_len = arr.len() as u32;
-    }
-
-    SC_OK
+    Principal::management_canister().copy_to((out_arr, out_arr_len, arr_size))
 }
 
 /// Construct a [`Principal`] from a public key.
@@ -68,22 +60,9 @@ pub extern "C" fn principal_self_authenticating(
     public_key: *const u8,
     public_key_size: u32,
 ) -> StateCode {
-    let public_key =
-        unsafe { std::slice::from_raw_parts(public_key, public_key_size as usize) };
-    let principal = Principal::self_authenticating(public_key);
+    let public_key = unsafe { std::slice::from_raw_parts(public_key, public_key_size as usize) };
 
-    let arr = principal.as_slice();
-
-    if arr.len() > arr_size as usize {
-        return SC_DATA_OVERFLOW;
-    }
-
-    unsafe {
-        std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
-        *out_arr_len = arr.len() as u32;
-    }
-
-    SC_OK
+    Principal::self_authenticating(public_key).copy_to((out_arr, out_arr_len, arr_size))
 }
 
 /// Construct anonymous [`Principal`].
@@ -99,19 +78,7 @@ pub extern "C" fn principal_anonymous(
     out_arr_len: *mut u32,
     arr_size: u32,
 ) -> StateCode {
-    let anonymous = Principal::anonymous();
-    let arr = anonymous.as_slice();
-
-    if arr.len() > arr_size as usize {
-        return SC_DATA_OVERFLOW;
-    }
-
-    unsafe {
-        std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
-        *out_arr_len = arr.len() as u32;
-    }
-
-    SC_OK
+    Principal::anonymous().copy_to((out_arr, out_arr_len, arr_size))
 }
 
 /// Construct a [`Principal`] from an array of bytes and pass the data of that principal to outside.
@@ -138,35 +105,8 @@ pub extern "C" fn principal_from_bytes(
     let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_size as usize) };
 
     match Principal::try_from_slice(slice) {
-        Ok(principal) => {
-            let arr = principal.as_slice();
-
-            if arr.len() > arr_size as usize {
-                return SC_DATA_OVERFLOW;
-            }
-
-            unsafe {
-                std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
-                *out_arr_len = arr.len() as u32;
-            }
-
-            SC_OK
-        }
-        Err(err) => {
-            let err_bytes = _err2bytes(err);
-
-            if err_bytes.len() > err_info_size as usize {
-                return SC_ERR_INFO_OVERFLOW;
-            }
-
-            let err_ptr = err_bytes.as_ptr() as *const c_char;
-
-            unsafe {
-                std::ptr::copy(err_ptr, out_err_info, err_bytes.len());
-            }
-
-            SC_INTERNAL_ERR
-        }
+        Ok(principal) => principal.copy_to((out_arr, out_arr_len, arr_size)),
+        Err(err) => err.copy_to((out_err_info, err_info_size)),
     }
 }
 
@@ -194,35 +134,8 @@ pub extern "C" fn principal_from_text(
     let principal = text.and_then(|text| Principal::from_text(text).map_err(AnyErr::from));
 
     match principal {
-        Ok(principal) => {
-            let arr = principal.as_slice();
-
-            if arr.len() > arr_size as usize {
-                return SC_DATA_OVERFLOW;
-            }
-
-            unsafe {
-                std::ptr::copy(arr.as_ptr(), out_arr, arr.len());
-                *out_arr_len = arr.len() as u32;
-            }
-
-            SC_OK
-        }
-        Err(err) => {
-            let err_bytes = _err2bytes(err);
-
-            if err_bytes.len() > err_info_size as usize {
-                return SC_ERR_INFO_OVERFLOW;
-            }
-
-            let err_ptr = err_bytes.as_ptr() as *const c_char;
-
-            unsafe {
-                std::ptr::copy(err_ptr, out_err_info, err_bytes.len());
-            }
-
-            SC_INTERNAL_ERR
-        }
+        Ok(principal) => principal.copy_to((out_arr, out_arr_len, arr_size)),
+        Err(err) => err.copy_to((out_err_info, err_info_size)),
     }
 }
 
@@ -255,7 +168,7 @@ pub extern "C" fn principal_to_text(
     match principal_text {
         Ok(principal_text) => {
             if principal_text.len() > text_size as usize {
-                return SC_DATA_OVERFLOW;
+                return StateCode::DataOverflow;
             }
 
             unsafe {
@@ -266,37 +179,10 @@ pub extern "C" fn principal_to_text(
                 );
             }
 
-            SC_OK
+            StateCode::Ok
         }
-        Err(err) => {
-            let err_bytes = _err2bytes(err);
-
-            if err_bytes.len() > err_info_size as usize {
-                return SC_ERR_INFO_OVERFLOW;
-            }
-
-            let err_ptr = err_bytes.as_ptr() as *const c_char;
-
-            unsafe {
-                std::ptr::copy(err_ptr, out_err_info, err_bytes.len());
-            }
-
-            SC_INTERNAL_ERR
-        }
+        Err(err) => err.copy_to((out_err_info, err_info_size)),
     }
-}
-
-/// HELPER: Convert `Error` implemented trait [`Display`] to C style String(represented as u8 array).
-///
-/// If failed, the return C Style String will be that(IGNORE QUOTATION MARKS):
-///
-/// "Failed on converting from `Error` to C Style String.\0"
-fn _err2bytes<E: Display>(err: E) -> Vec<u8> {
-    let err_str = err.to_string();
-
-    CString::new(err_str)
-        .map(|cstr| cstr.into_bytes_with_nul())
-        .unwrap_or_else(|_| b"Failed on converting from `Error` to C Style String.\0".to_vec())
 }
 
 #[cfg(test)]
@@ -315,7 +201,7 @@ mod tests {
 
         assert_eq!(
             principal_management_canister(out_arr, out_arr_len, ARR_SIZE as u32),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {
@@ -364,7 +250,7 @@ mod tests {
                 public_key,
                 PUBLIC_KEY_LEN as u32,
             ),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {
@@ -389,7 +275,7 @@ mod tests {
 
         assert_eq!(
             principal_anonymous(out_arr, out_arr_len, ARR_SIZE as u32),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {
@@ -433,7 +319,7 @@ mod tests {
                 out_err_info,
                 ERR_INFO_SIZE as u32,
             ),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {
@@ -480,7 +366,7 @@ mod tests {
                 out_err_info,
                 ERR_INFO_SIZE as u32
             ),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {
@@ -532,7 +418,7 @@ mod tests {
                 out_err_info,
                 ERR_INFO_SIZE as u32
             ),
-            SC_OK
+            StateCode::Ok
         );
 
         unsafe {

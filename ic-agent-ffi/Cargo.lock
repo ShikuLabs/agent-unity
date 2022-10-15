@@ -863,6 +863,7 @@ dependencies = [
  "ic-agent",
  "ic-types",
  "ic-utils",
+ "k256",
  "lazy_static",
  "libc",
  "ring",

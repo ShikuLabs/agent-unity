@@ -1,4 +1,4 @@
-extern crate core;
+use anyhow::Error as AnyErr;
 
 use crate::host::HostKeyStore;
 use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl, update};
@@ -17,10 +17,55 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tokio::runtime;
 
-mod agent;
 mod host;
 mod ic_helper;
+
+mod agent;
+mod identity;
 mod principal;
+
+/// NOTE: New Things
+
+/// The state code represented the status of calling ffi functions.
+#[repr(i32)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
+pub enum StateCode {
+    /// Ok
+    Ok = 0,
+    /// The data copied to the memory overflows.
+    DataOverflow = -1,
+    /// The function was terminated by an internal error.
+    InternalErr = -2,
+    /// The error info copied to the memory overflows.
+    ErrInfoOverflow = -3,
+}
+
+pub trait CopyTo<T> {
+    fn copy_to(self, params: T) -> StateCode;
+}
+
+type EType = (*mut c_char, u32);
+impl<E: Display> CopyTo<EType> for E {
+    fn copy_to(self, (out_err_info, err_info_size): EType) -> StateCode {
+        let err_str = self.to_string();
+
+        let err_bytes = CString::new(err_str)
+            .map(|cstr| cstr.into_bytes_with_nul())
+            .unwrap_or_else(|_| b"Failed on converting from `Error` to C Style String.\0".to_vec());
+
+        if err_bytes.len() > err_info_size as usize {
+            return StateCode::ErrInfoOverflow;
+        }
+
+        let err_ptr = err_bytes.as_ptr() as *const c_char;
+
+        unsafe {
+            std::ptr::copy(err_ptr, out_err_info, err_bytes.len());
+        }
+
+        StateCode::InternalErr
+    }
+}
 
 #[allow(clippy::upper_case_acronyms)]
 type LPSTR = *mut c_char;
