@@ -135,15 +135,15 @@ pub extern "C" fn identity_sender(
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(*fptr) };
 
-    let sc = match boxed.sender() {
-        Ok(principal) => principal.copy_to((out_arr, out_arr_len, arr_size)),
-        Err(err) => err.copy_to((out_err_info, err_info_size)),
-    };
+    let sender = boxed.sender();
 
     // keep available the fat pointer to the [`Identity`]
     let _ = Box::into_raw(boxed);
 
-    sc
+    match sender {
+        Ok(principal) => principal.copy_to((out_arr, out_arr_len, arr_size)),
+        Err(err) => err.copy_to((out_err_info, err_info_size)),
+    }
 }
 
 #[no_mangle]
