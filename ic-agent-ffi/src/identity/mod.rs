@@ -3,7 +3,7 @@ use ic_agent::identity::{AnonymousIdentity, BasicIdentity, Secp256k1Identity};
 use ic_agent::{Identity, Signature};
 use k256::elliptic_curve::rand_core::OsRng;
 use k256::SecretKey;
-use libc::c_char;
+use libc::{c_char, c_int};
 use ring::rand::SystemRandom;
 use ring::signature::Ed25519KeyPair;
 use std::ffi::CStr;
@@ -116,7 +116,7 @@ pub extern "C" fn identity_sender(
 pub extern "C" fn identity_sign(
     fptr: *const *mut dyn Identity,
     bytes: *const u8,
-    bytes_len: u32,
+    bytes_len: c_int,
     pub_key_cb: UnsizedCallBack,
     sig_cb: UnsizedCallBack,
     err_cb: UnsizedCallBack,
