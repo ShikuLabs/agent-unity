@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use ic_agent::Identity;
 use ic_types::Principal;
 use lazy_static::lazy_static;
-use libc::c_char;
+use libc::{c_char, c_int};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -26,45 +26,40 @@ mod principal;
 
 /// NOTE: New Things
 
+/// A callback used to give the unsized value to caller.
+type UnsizedCallBack = extern "C" fn(*const u8, c_int);
+
+/// TODO: Use macro to abstract the same parts from the different functions for reducing duplicated code.
+fn ret_unsized(unsized_cb: UnsizedCallBack, s: impl AsRef<[u8]>) {
+    let arr = s.as_ref();
+    let len = arr.len() as c_int;
+
+    unsized_cb(arr.as_ptr(), len);
+}
+
+fn ret_identity(fptr: *mut *const dyn Identity, iden: impl Identity + 'static) {
+    let boxed: Box<dyn Identity> = Box::new(iden);
+    let raw = Box::into_raw(boxed);
+
+    unsafe {
+        *fptr = raw;
+    }
+}
+
 /// The state code represented the status of calling ffi functions.
 #[repr(i32)]
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash)]
 pub enum StateCode {
     /// Ok
     Ok = 0,
+    /// Error
+    Err = -1,
     /// The data copied to the memory overflows.
-    DataOverflow = -1,
+    DataOverflow = -2,
     /// The function was terminated by an internal error.
-    InternalErr = -2,
+    InternalErr = -3,
     /// The error info copied to the memory overflows.
-    ErrInfoOverflow = -3,
-}
-
-pub trait CopyTo<T> {
-    fn copy_to(self, params: T) -> StateCode;
-}
-
-type EType = (*mut c_char, u32);
-impl<E: Display> CopyTo<EType> for E {
-    fn copy_to(self, (out_err_info, err_info_size): EType) -> StateCode {
-        let err_str = self.to_string();
-
-        let err_bytes = CString::new(err_str)
-            .map(|cstr| cstr.into_bytes_with_nul())
-            .unwrap_or_else(|_| b"Failed on converting from `Error` to C Style String.\0".to_vec());
-
-        if err_bytes.len() > err_info_size as usize {
-            return StateCode::ErrInfoOverflow;
-        }
-
-        let err_ptr = err_bytes.as_ptr() as *const c_char;
-
-        unsafe {
-            std::ptr::copy(err_ptr, out_err_info, err_bytes.len());
-        }
-
-        StateCode::InternalErr
-    }
+    ErrInfoOverflow = -4,
 }
 
 #[allow(clippy::upper_case_acronyms)]
