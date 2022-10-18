@@ -6,6 +6,7 @@ use crate::{ret_unsized, AnyErr, StateCode, UnsizedCallBack};
 use ic_types::principal::Principal;
 use libc::c_char;
 use std::ffi::{CStr, CString};
+use std::fmt::Display;
 
 /// Construct the [`Principal`] of management canister.
 #[no_mangle]
@@ -53,18 +54,7 @@ pub extern "C" fn principal_from_bytes(
 
     let principal = Principal::try_from_slice(slice);
 
-    match principal {
-        Ok(principal) => {
-            ret_unsized(ret_cb, principal);
-
-            StateCode::Ok
-        }
-        Err(err) => {
-            ret_unsized(err_cb, err.to_string());
-
-            StateCode::Err
-        }
-    }
+    __todo_replace_this_by_macro(ret_cb, err_cb, principal)
 }
 
 /// Construct a [`Principal`] from C style String.
@@ -82,18 +72,7 @@ pub extern "C" fn principal_from_text(
 
     let principal = text.and_then(|text| Principal::from_text(text).map_err(AnyErr::from));
 
-    match principal {
-        Ok(principal) => {
-            ret_unsized(ret_cb, principal);
-
-            StateCode::Ok
-        }
-        Err(err) => {
-            ret_unsized(err_cb, err.to_string());
-
-            StateCode::Err
-        }
-    }
+    __todo_replace_this_by_macro(ret_cb, err_cb, principal)
 }
 
 /// Return the textual representation of [`Principal`].
@@ -117,14 +96,26 @@ pub extern "C" fn principal_to_text(
         .and_then(|text| CString::new(text).map_err(AnyErr::from))
         .map(|text| text.into_bytes_with_nul());
 
-    match text {
-        Ok(text) => {
-            ret_unsized(ret_cb, text);
+    __todo_replace_this_by_macro(ret_cb, err_cb, text)
+}
+
+pub(crate) fn __todo_replace_this_by_macro<T, E>(
+    ret_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack,
+    r: Result<T, E>,
+) -> StateCode
+where
+    T: AsRef<[u8]>,
+    E: Display,
+{
+    match r {
+        Ok(v) => {
+            ret_unsized(ret_cb, v);
 
             StateCode::Ok
         }
-        Err(err) => {
-            ret_unsized(err_cb, err.to_string());
+        Err(e) => {
+            ret_unsized(err_cb, e.to_string());
 
             StateCode::Err
         }

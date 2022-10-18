@@ -1,3 +1,5 @@
+#![feature(unsize)]
+
 use anyhow::Error as AnyErr;
 
 use crate::host::HostKeyStore;
@@ -13,6 +15,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Display;
+use std::marker::Unsize;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use tokio::runtime;
@@ -37,13 +40,15 @@ fn ret_unsized(unsized_cb: UnsizedCallBack, s: impl AsRef<[u8]>) {
     unsized_cb(arr.as_ptr(), len);
 }
 
-fn ret_identity(fptr: *mut *const dyn Identity, iden: impl Identity + 'static) {
-    let boxed: Box<dyn Identity> = Box::new(iden);
+unsafe fn ret_fat_ptr<T, U>(p2p: *mut *const U, t: T)
+where
+    T: Unsize<U>,
+    U: ?Sized,
+{
+    let boxed = Box::new(t);
     let raw = Box::into_raw(boxed);
 
-    unsafe {
-        *fptr = raw;
-    }
+    *p2p = raw;
 }
 
 /// The state code represented the status of calling ffi functions.
