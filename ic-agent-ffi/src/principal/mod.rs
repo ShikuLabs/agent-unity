@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn principal_to_text_should_work() {
         const ANONYMOUS_TEXT: &[u8; 10] = b"2vxsx-fae\0";
-        const ANONYMOUS_BYTES: [u8; 1] = [0x04u8];
+        const ANONYMOUS_BYTES: [u8; 1] = [4u8];
 
         extern "C" fn ret_cb(data: *const u8, len: c_int) {
             let slice = unsafe { std::slice::from_raw_parts(data, len as usize) };
