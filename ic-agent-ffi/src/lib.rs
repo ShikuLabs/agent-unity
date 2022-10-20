@@ -59,12 +59,6 @@ pub enum StateCode {
     Ok = 0,
     /// Error
     Err = -1,
-    /// The data copied to the memory overflows.
-    DataOverflow = -2,
-    /// The function was terminated by an internal error.
-    InternalErr = -3,
-    /// The error info copied to the memory overflows.
-    ErrInfoOverflow = -4,
 }
 
 #[allow(clippy::upper_case_acronyms)]
