@@ -9,6 +9,15 @@ use ring::signature::Ed25519KeyPair;
 use std::ffi::CStr;
 use std::fmt::Display;
 
+#[allow(dead_code)]
+#[repr(i32)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum IdentityType {
+    Anonymous = 0,
+    Basic = 1,
+    Secp256K1 = 2,
+}
+
 #[no_mangle]
 pub extern "C" fn identity_anonymous(p2fptr: *mut *const dyn Identity) {
     unsafe {
@@ -133,14 +142,14 @@ pub extern "C" fn identity_free(p2fptr: *const *const dyn Identity) {
 }
 
 pub(crate) fn __todo_replace_this_by_macro(
-    p2p: *mut *const dyn Identity,
+    p2fptr: *mut *const dyn Identity,
     err_cb: UnsizedCallBack,
     r: Result<impl Identity + 'static, impl Display>,
 ) -> StateCode {
     match r {
         Ok(t) => {
             unsafe {
-                ret_fat_ptr(p2p, t);
+                ret_fat_ptr(p2fptr, t);
             }
 
             StateCode::Ok
@@ -156,6 +165,7 @@ pub(crate) fn __todo_replace_this_by_macro(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests_util::apply_fptr;
     use ic_types::Principal;
 
     const BASIC_IDENTITY_FILE: &'static str = "-----BEGIN PRIVATE KEY-----
@@ -176,7 +186,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_anonymous_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<AnonymousIdentity, _>();
 
         identity_anonymous(&mut fptr);
 
@@ -189,7 +199,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_basic_random_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<BasicIdentity, _>();
 
         assert_eq!(
             identity_basic_random(&mut fptr, empty_err_cb),
@@ -205,7 +215,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_basic_from_pem_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<BasicIdentity, _>();
 
         assert_eq!(
             identity_basic_from_pem(
@@ -226,7 +236,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_secp256k1_random_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<Secp256k1Identity, _>();
 
         identity_secp256k1_random(&mut fptr);
 
@@ -239,7 +249,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_secp256k1_from_pem_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<Secp256k1Identity, _>();
 
         assert_eq!(
             identity_secp256k1_from_pem(
@@ -263,7 +273,7 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
     fn identity_sender_should_work() {
         const ANONYMOUS_BYTES: [u8; 1] = [4u8];
 
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<AnonymousIdentity, _>();
 
         identity_anonymous(&mut fptr);
 
@@ -329,14 +339,9 @@ N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 
     #[test]
     fn identity_free_should_work() {
-        let mut fptr = apply_fptr();
+        let mut fptr = apply_fptr::<AnonymousIdentity, _>();
 
         identity_anonymous(&mut fptr);
         identity_free(&fptr);
-    }
-
-    #[inline]
-    const fn apply_fptr() -> *const dyn Identity {
-        0u128 as *const AnonymousIdentity as *const dyn Identity
     }
 }
