@@ -1,6 +1,7 @@
 #![feature(unsize)]
 
 use anyhow::Error as AnyErr;
+use anyhow::Result as AnyResult;
 
 use crate::host::HostKeyStore;
 use crate::ic_helper::{get_idl, list_idl, query, register_idl, remove_idl, update};
