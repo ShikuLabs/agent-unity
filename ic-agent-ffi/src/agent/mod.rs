@@ -10,7 +10,7 @@ use ic_types::Principal;
 use ic_utils::interfaces::management_canister::builders::{CanisterInstall, CanisterSettings};
 use ic_utils::interfaces::management_canister::MgmtMethod;
 use libc::{c_char, c_int};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::runtime;
@@ -39,6 +39,33 @@ impl AgentWrapper {
             .with_arg(args_blb)
             .with_effective_canister_id(effective_canister_id)
             .call()
+            .await
+            .map_err(AnyErr::from)?;
+
+        let rst_idl = Self::idl_from_blob(rst_blb.as_slice(), &ty_env, &func_sig)?;
+
+        Ok(rst_idl)
+    }
+
+    pub async fn update(&self, func_name: &str, func_args: &str) -> AnyResult<IDLArgs> {
+        let (ty_env, actor) = self.parse_candid_file()?;
+        let func_sig = Self::get_method_signature(func_name, &ty_env, &actor)?;
+        let args_blb = Self::blob_from_raw(func_args, &ty_env, &func_sig)?;
+
+        let effective_canister_id =
+            Self::get_effective_canister_id(func_args, args_blb.as_slice(), &self.canister_id)?;
+
+        let agent = self.create_agent()?;
+
+        let rst_blb = agent
+            .update(&self.canister_id, func_name)
+            .with_arg(args_blb)
+            .with_effective_canister_id(effective_canister_id)
+            .call_and_wait(
+                garcon::Delay::builder()
+                    .timeout(std::time::Duration::from_secs(60 * 5))
+                    .build(),
+            )
             .await
             .map_err(AnyErr::from)?;
 
@@ -237,29 +264,60 @@ pub extern "C" fn agent_create(
 
 #[no_mangle]
 pub extern "C" fn agent_query(
-    p2ptr_agent_w: *const *const AgentWrapper,
+    ptr_agent_w: *const AgentWrapper,
     func_name: *const c_char,
     func_args: *const c_char,
     ret_cb: UnsizedCallBack,
     err_cb: UnsizedCallBack,
 ) -> StateCode {
-    let once = || -> AnyResult<String> {
-        let agent_w = unsafe { Box::from_raw(*p2ptr_agent_w as *mut AgentWrapper) };
+    let once = || -> AnyResult<_> {
+        let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
         let func_name = unsafe { CStr::from_ptr(func_name).to_str().map_err(AnyErr::from) }?;
         let func_args = unsafe { CStr::from_ptr(func_args).to_str().map_err(AnyErr::from) }?;
 
         let runtime = runtime::Runtime::new()?;
         let rst_idl = runtime.block_on(agent_w.query(func_name, func_args))?;
 
-        Ok(rst_idl.to_string())
+        // Don't drop the [`AgentWrapper`]
+        Box::into_raw(agent_w);
+
+        let rst_cstr = CString::new(rst_idl.to_string())
+            .map_err(AnyErr::from)?
+            .into_bytes_with_nul();
+
+        Ok(rst_cstr)
     };
 
     crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
 }
 
 #[no_mangle]
-pub extern "C" fn agent_update() -> StateCode {
-    todo!()
+pub extern "C" fn agent_update(
+    ptr_agent_w: *const AgentWrapper,
+    func_name: *const c_char,
+    func_args: *const c_char,
+    ret_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack,
+) -> StateCode {
+    let once = || -> AnyResult<_> {
+        let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
+        let func_name = unsafe { CStr::from_ptr(func_name).to_str().map_err(AnyErr::from) }?;
+        let func_args = unsafe { CStr::from_ptr(func_args).to_str().map_err(AnyErr::from) }?;
+
+        let runtime = runtime::Runtime::new()?;
+        let rst_idl = runtime.block_on(agent_w.update(func_name, func_args))?;
+
+        // Don't drop the [`AgentWrapper`]
+        Box::into_raw(agent_w);
+
+        let rst_cstr = CString::new(rst_idl.to_string())
+            .map_err(AnyErr::from)?
+            .into_bytes_with_nul();
+
+        Ok(rst_cstr)
+    };
+
+    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
 }
 
 #[no_mangle]
@@ -276,16 +334,18 @@ mod tests {
     use ic_types::Principal;
     use libc::c_int;
 
-    const IC_NET_BYTES: &[u8; 16] = b"https://ic0.app\0";
-    const CANISTER_ID_BYTES: &[u8; 1] = &[4u8];
-    const DID_CONTENT_BYTES: &[u8; 5] = b"todo\0";
+    const IC_NET_BYTES: &[u8] = b"https://ic0.app\0";
+
+    const II_CANISTER_ID_BYTES: &[u8] = &[0, 0, 0, 0, 0, 0, 0, 7, 1, 1];
+    const II_DID_CONTENT_BYTES: &[u8] =
+        concat_bytes!(include_bytes!("rdmx6-jaaaa-aaaaa-aaadq-cai.did"), b"\0");
 
     fn cbytes_to_str(cbytes: &[u8]) -> &str {
         let cstr = CStr::from_bytes_with_nul(cbytes).unwrap();
         cstr.to_str().unwrap()
     }
 
-    extern "C" fn empty_err_cb(_data: *const u8, _len: c_int) {}
+    extern "C" fn empty_cb(_data: *const u8, _len: c_int) {}
 
     #[test]
     fn agent_create_with_anonymous_should_work() {
@@ -298,11 +358,11 @@ mod tests {
                 IC_NET_BYTES.as_ptr() as *const c_char,
                 &mut fptr,
                 IdentityType::Anonymous,
-                CANISTER_ID_BYTES.as_ptr(),
-                CANISTER_ID_BYTES.len() as c_int,
-                DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
                 &mut ptr,
-                empty_err_cb
+                empty_cb
             ),
             StateCode::Ok
         );
@@ -316,9 +376,12 @@ mod tests {
             assert_eq!(agent_w_wrap.identity.sender(), identity_boxed.sender());
             assert_eq!(
                 agent_w_wrap.canister_id,
-                Principal::from_slice(CANISTER_ID_BYTES)
+                Principal::from_slice(II_CANISTER_ID_BYTES)
             );
-            assert_eq!(agent_w_wrap.did_content, cbytes_to_str(DID_CONTENT_BYTES));
+            assert_eq!(
+                agent_w_wrap.did_content,
+                cbytes_to_str(II_DID_CONTENT_BYTES)
+            );
         }
     }
 
@@ -333,11 +396,11 @@ mod tests {
                 IC_NET_BYTES.as_ptr() as *const c_char,
                 &mut fptr,
                 IdentityType::Secp256K1,
-                CANISTER_ID_BYTES.as_ptr(),
-                CANISTER_ID_BYTES.len() as c_int,
-                DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
                 &mut ptr,
-                empty_err_cb
+                empty_cb
             ),
             StateCode::Ok
         );
@@ -351,9 +414,12 @@ mod tests {
             assert_eq!(agent_w_wrap.identity.sender(), identity_boxed.sender());
             assert_eq!(
                 agent_w_wrap.canister_id,
-                Principal::from_slice(CANISTER_ID_BYTES)
+                Principal::from_slice(II_CANISTER_ID_BYTES)
             );
-            assert_eq!(agent_w_wrap.did_content, cbytes_to_str(DID_CONTENT_BYTES));
+            assert_eq!(
+                agent_w_wrap.did_content,
+                cbytes_to_str(II_DID_CONTENT_BYTES)
+            );
         }
     }
 
@@ -366,7 +432,7 @@ mod tests {
         }
 
         let mut fptr = apply_fptr::<BasicIdentity, _>();
-        identity_basic_random(&mut fptr, empty_err_cb);
+        identity_basic_random(&mut fptr, empty_cb);
         let mut ptr = apply_ptr::<AgentWrapper>();
 
         assert_eq!(
@@ -374,9 +440,9 @@ mod tests {
                 IC_NET_BYTES.as_ptr() as *const c_char,
                 &mut fptr,
                 IdentityType::Basic,
-                CANISTER_ID_BYTES.as_ptr(),
-                CANISTER_ID_BYTES.len() as c_int,
-                DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
                 &mut ptr,
                 err_cb
             ),
@@ -388,6 +454,125 @@ mod tests {
             assert!(identity_boxed.sender().is_ok());
 
             assert_eq!(ptr as u64, 0u64);
+        }
+    }
+
+    #[test]
+    fn agent_query_should_work() {
+        extern "C" fn ret_cb(data: *const u8, _len: c_int) {
+            const EXPECTED: &str = r#"(
+  vec {
+    record {
+      alias = "macbook-2021";
+      pubkey = blob "0^0\0c\06\0a+\06\01\04\01\83\b8C\01\01\03N\00\a5\01\02\03& \01!X Q\bf\c1O\11\feX\a1\1d\1a\1a|$\be\15>\12\dc/|v\bc)\db#\14\a0pM!\fdf\22X V\ac\d0t\02c\15\e7\fd\edS\ed?K\a7r\86\86K\f9\06\9a\c7\04I\15\a3\f4\00-\a6\93";
+      key_type = variant { unknown };
+      purpose = variant { authentication };
+      credential_id = opt blob "\0c\d6\e3\cd\8a\ad\07\e6\95\e9\08j\90\c6.\0d\b0\d8\cc\db\f6\c7\18l\ba\1aM\c9\8b\a8\12\c8%\d2\af\12\bc\0a\cd\b1\08\9d\af\e6\f1\9c\a0Lq\b0\a2\e9-\12\cc\8a\c1\ad%\b1P\b6\f8@+_\a9\223\af\07\0d\1d\cfv\9b\0a\80\fd\8a\abE\c5";
+    };
+  },
+)"#;
+
+            let c_str = unsafe { CStr::from_ptr(data as *const i8) };
+            let str = c_str.to_str().unwrap();
+
+            assert_eq!(str, EXPECTED);
+        }
+
+        let mut fptr = apply_fptr::<Secp256k1Identity, _>();
+        identity_secp256k1_random(&mut fptr);
+
+        let mut ptr = apply_ptr::<AgentWrapper>();
+
+        assert_eq!(
+            agent_create(
+                IC_NET_BYTES.as_ptr() as *const c_char,
+                &mut fptr,
+                IdentityType::Secp256K1,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                &mut ptr,
+                empty_cb
+            ),
+            StateCode::Ok
+        );
+
+        assert_eq!(
+            agent_query(
+                ptr,
+                b"lookup\0".as_ptr() as *const c_char,
+                b"(1974211: nat64)\0".as_ptr() as *const c_char,
+                ret_cb,
+                empty_cb,
+            ),
+            StateCode::Ok
+        );
+
+        unsafe {
+            let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
+            assert!(identity_boxed.sender().is_ok());
+
+            let agent_w_wrap = Box::from_raw(ptr as *mut AgentWrapper);
+            assert_eq!(agent_w_wrap.url, cbytes_to_str(IC_NET_BYTES));
+            assert_eq!(agent_w_wrap.identity.sender(), identity_boxed.sender());
+            assert_eq!(
+                agent_w_wrap.canister_id,
+                Principal::from_slice(II_CANISTER_ID_BYTES)
+            );
+            assert_eq!(
+                agent_w_wrap.did_content,
+                cbytes_to_str(II_DID_CONTENT_BYTES)
+            );
+        }
+    }
+
+    #[test]
+    fn agent_update_should_work() {
+        let mut fptr = apply_fptr::<Secp256k1Identity, _>();
+        identity_secp256k1_random(&mut fptr);
+
+        let mut ptr = apply_ptr::<AgentWrapper>();
+
+        assert_eq!(
+            agent_create(
+                IC_NET_BYTES.as_ptr() as *const c_char,
+                &mut fptr,
+                IdentityType::Secp256K1,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                &mut ptr,
+                empty_cb
+            ),
+            StateCode::Ok
+        );
+
+        assert_eq!(
+            agent_update(
+                ptr,
+                b"create_challenge\0".as_ptr() as *const c_char,
+                b"()\0".as_ptr() as *const c_char,
+                empty_cb,
+                empty_cb,
+            ),
+            StateCode::Ok
+        );
+
+        unsafe {
+            let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
+            assert!(identity_boxed.sender().is_ok());
+
+            let agent_w_wrap = Box::from_raw(ptr as *mut AgentWrapper);
+            assert_eq!(agent_w_wrap.url, cbytes_to_str(IC_NET_BYTES));
+            assert_eq!(agent_w_wrap.identity.sender(), identity_boxed.sender());
+            assert_eq!(
+                agent_w_wrap.canister_id,
+                Principal::from_slice(II_CANISTER_ID_BYTES)
+            );
+            assert_eq!(
+                agent_w_wrap.did_content,
+                cbytes_to_str(II_DID_CONTENT_BYTES)
+            );
         }
     }
 }

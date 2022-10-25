@@ -1,4 +1,5 @@
 #![feature(unsize)]
+#![feature(concat_bytes)]
 
 use anyhow::Error as AnyErr;
 use anyhow::Result as AnyResult;
