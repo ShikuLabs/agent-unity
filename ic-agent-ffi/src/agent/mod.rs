@@ -13,6 +13,7 @@ use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
 use std::str::FromStr;
 use std::sync::Arc;
+use ic_agent::agent::status::Status;
 use tokio::runtime;
 
 pub struct AgentWrapper {
@@ -72,6 +73,14 @@ impl AgentWrapper {
         let rst_idl = Self::idl_from_blob(rst_blb.as_slice(), &ty_env, &func_sig)?;
 
         Ok(rst_idl)
+    }
+
+    pub async fn status(&self) -> AnyResult<Status> {
+        let agent = self.create_agent()?;
+
+        agent.status()
+            .await
+            .map_err(AnyErr::from)
     }
 
     fn parse_candid_file(&self) -> AnyResult<(TypeEnv, Option<Type>)> {
@@ -321,8 +330,28 @@ pub extern "C" fn agent_update(
 }
 
 #[no_mangle]
-pub extern "C" fn agent_status() -> StateCode {
-    todo!()
+pub extern "C" fn agent_status(
+    ptr_agent_w: *const AgentWrapper,
+    ret_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack,
+) -> StateCode {
+    let once = || -> AnyResult<_> {
+        let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
+
+        let runtime = runtime::Runtime::new()?;
+        let status = runtime.block_on(agent_w.status())?;
+
+        // Don't drop the [`AgentWrapper`]
+        Box::into_raw(agent_w);
+
+        let status_cstr = CString::new(status.to_string())
+            .map_err(AnyErr::from)?
+            .into_bytes_with_nul();
+
+        Ok(status_cstr)
+    };
+
+    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
 }
 
 #[cfg(test)]
@@ -552,6 +581,54 @@ mod tests {
                 ptr,
                 b"create_challenge\0".as_ptr() as *const c_char,
                 b"()\0".as_ptr() as *const c_char,
+                empty_cb,
+                empty_cb,
+            ),
+            StateCode::Ok
+        );
+
+        unsafe {
+            let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
+            assert!(identity_boxed.sender().is_ok());
+
+            let agent_w_wrap = Box::from_raw(ptr as *mut AgentWrapper);
+            assert_eq!(agent_w_wrap.url, cbytes_to_str(IC_NET_BYTES));
+            assert_eq!(agent_w_wrap.identity.sender(), identity_boxed.sender());
+            assert_eq!(
+                agent_w_wrap.canister_id,
+                Principal::from_slice(II_CANISTER_ID_BYTES)
+            );
+            assert_eq!(
+                agent_w_wrap.did_content,
+                cbytes_to_str(II_DID_CONTENT_BYTES)
+            );
+        }
+    }
+
+    #[test]
+    fn agent_status_should_work() {
+        let mut fptr = apply_fptr::<Secp256k1Identity, _>();
+        identity_secp256k1_random(&mut fptr);
+
+        let mut ptr = apply_ptr::<AgentWrapper>();
+
+        assert_eq!(
+            agent_create(
+                IC_NET_BYTES.as_ptr() as *const c_char,
+                &mut fptr,
+                IdentityType::Secp256K1,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                &mut ptr,
+                empty_cb
+            ),
+            StateCode::Ok
+        );
+
+        assert_eq!(
+            agent_status(
+                ptr,
                 empty_cb,
                 empty_cb,
             ),
