@@ -28,7 +28,12 @@ jobs:
     steps:
       - name: check out latest commit
         uses: actions/checkout@v3
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            override: true
+            components: clippy
       - name: lint rust code
         run: |
-          rustup default nightly
           cd ./ic-agent-ffi/ && cargo clippy -- -D warnings
