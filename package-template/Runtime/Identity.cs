@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
+#nullable enable
 public class Identity
 {
     internal IntPtr[] _p2FPtr;
@@ -240,3 +241,4 @@ public enum IdentityType
     Basic = 1,
     Secp256K1 = 2,
 }
+#nullable disable

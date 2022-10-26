@@ -3,6 +3,7 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
+#nullable enable
 public class Principal : IEquatable<Principal>
 {
     public byte[] Bytes { get; }
@@ -207,3 +208,4 @@ public class Principal : IEquatable<Principal>
         );
     }
 }
+#nullable disable

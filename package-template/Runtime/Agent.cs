@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 
+#nullable enable
 public class Agent
 {
     private IntPtr _ptr;
@@ -204,3 +205,4 @@ public class Agent
         );
     }
 }
+#nullable disable
