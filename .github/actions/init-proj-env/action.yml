@@ -4,6 +4,11 @@ description: "Init the project environment for running scripts"
 runs:
   using: "composite"
   steps:
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
     - name: install cross-rs
       run: cargo install cross --git https://github.com/cross-rs/cross
       shell: bash
