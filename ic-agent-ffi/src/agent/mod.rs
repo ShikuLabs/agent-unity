@@ -17,6 +17,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::runtime;
 
+#[derive(Clone, Debug)]
 pub struct AgentWrapper {
     url: String,
     identity: Arc<dyn Identity>,
@@ -25,6 +26,16 @@ pub struct AgentWrapper {
 }
 
 impl AgentWrapper {
+    pub unsafe fn from_raw(ptr: *mut Self) -> Self {
+        let boxed = Box::from_raw(ptr);
+        let cloned = boxed.clone();
+
+        // Don't drop the [`AgentWrapper`]
+        Box::into_raw(boxed);
+
+        *cloned
+    }
+
     pub async fn query(&self, func_name: &str, func_args: &str) -> AnyResult<IDLArgs> {
         let (ty_env, actor) = self.parse_candid_file()?;
         let func_sig = Self::get_method_signature(func_name, &ty_env, &actor)?;
@@ -266,15 +277,12 @@ pub extern "C" fn agent_query(
     err_cb: UnsizedCallBack,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
-        let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
+        let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
         let func_name = unsafe { CStr::from_ptr(func_name).to_str().map_err(AnyErr::from) }?;
         let func_args = unsafe { CStr::from_ptr(func_args).to_str().map_err(AnyErr::from) }?;
 
         let runtime = runtime::Runtime::new()?;
         let rst_idl = runtime.block_on(agent_w.query(func_name, func_args))?;
-
-        // Don't drop the [`AgentWrapper`]
-        Box::into_raw(agent_w);
 
         let rst_cstr = rst_idl.to_string() + "\0";
 
@@ -293,15 +301,12 @@ pub extern "C" fn agent_update(
     err_cb: UnsizedCallBack,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
-        let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
+        let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
         let func_name = unsafe { CStr::from_ptr(func_name).to_str().map_err(AnyErr::from) }?;
         let func_args = unsafe { CStr::from_ptr(func_args).to_str().map_err(AnyErr::from) }?;
 
         let runtime = runtime::Runtime::new()?;
         let rst_idl = runtime.block_on(agent_w.update(func_name, func_args))?;
-
-        // Don't drop the [`AgentWrapper`]
-        Box::into_raw(agent_w);
 
         let rst_cstr = CString::new(rst_idl.to_string())
             .map_err(AnyErr::from)?
