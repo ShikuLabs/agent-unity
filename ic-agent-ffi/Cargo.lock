@@ -850,7 +850,7 @@ dependencies = [
 
 [[package]]
 name = "ic-agent-ffi"
-version = "0.1.0-beta-pre"
+version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "base64",
@@ -863,6 +863,7 @@ dependencies = [
  "ic-agent",
  "ic-types",
  "ic-utils",
+ "k256",
  "lazy_static",
  "libc",
  "ring",

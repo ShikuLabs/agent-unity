@@ -1,302 +1,208 @@
 using System;
 using System.Runtime.InteropServices;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using UnityEngine;
 
-namespace IC {
-    public static class Agent
+#nullable enable
+public class Agent
+{
+    private IntPtr _ptr;
+
+    private Agent(IntPtr ptr)
     {
-        [DllImport("ic-agent")]
-        private static extern Response create_keystore([MarshalAs(UnmanagedType.LPStr)] string req);
+        _ptr = ptr;
+    }
 
-        [DllImport("ic-agent")]
-        private static extern void free_rsp(Response rsp);
+    ~Agent()
+    {
+        FromRust.agent_free(_ptr);
+    }
 
-        [DllImport("ic-agent")]
-        private static extern Response login_by_host([MarshalAs(UnmanagedType.LPStr)] string req);
+    public static Agent Create(
+        string url,
+        Identity identity,
+        Principal canisterId,
+        string didContent
+    )
+    {
+        string? outError = null;
+        UnsizedCallback errCb = (data, len) =>
+        {
+            outError = Marshal.PtrToStringAnsi(data);
+        };
 
-        [DllImport("ic-agent")]
-        private static extern Response get_logged_receipt([MarshalAs(UnmanagedType.LPStr)] string req);
-
-        [DllImport("ic-agent")]
-        private static extern Response list_logged_receipt();
-
-        [DllImport("ic-agent")]
-        private static extern Response logout([MarshalAs(UnmanagedType.LPStr)] string req);
-
-        [DllImport("ic-agent")]
-        private static extern Response ic_register_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId, [MarshalAs(UnmanagedType.LPStr)] string candidFile);
-
-        [DllImport("ic-agent")]
-        private static extern Response ic_remove_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
-        
-        [DllImport("ic-agent")]
-        private static extern Response ic_get_idl([MarshalAs(UnmanagedType.LPStr)] string canisterId);
-
-        [DllImport("ic-agent")]
-        private static extern Response ic_list_idl();
-        
-        [DllImport("ic-agent")]
-        private static extern Response ic_query_sync(
-            [MarshalAs(UnmanagedType.LPStr)] string caller,
-            [MarshalAs(UnmanagedType.LPStr)] string canisterId,
-            [MarshalAs(UnmanagedType.LPStr)] string methodName,
-            [MarshalAs(UnmanagedType.LPStr)] string argsRaw
+        var sc = FromRust.agent_create(
+            url,
+            identity._p2FPtr,
+            identity.Type,
+            canisterId.Bytes,
+            canisterId.Bytes.Length,
+            didContent,
+            out IntPtr ptr,
+            errCb
         );
-        
-        [DllImport("ic-agent")]
-        private static extern Response ic_update_sync(
-            [MarshalAs(UnmanagedType.LPStr)] string caller,
-            [MarshalAs(UnmanagedType.LPStr)] string canisterId,
-            [MarshalAs(UnmanagedType.LPStr)] string methodName,
-            [MarshalAs(UnmanagedType.LPStr)] string argsRaw
+
+        if (sc == StateCode.Ok)
+            return new Agent(ptr);
+        else
+        {
+            if (outError == null)
+                throw new FailedCallingRust("Failed on getting error from rust.");
+            else
+                throw new ErrorFromRust(outError);
+        }
+    }
+
+    public string Query(string funcName, string funcArgs)
+    {
+        string? outIdlArgs = null;
+        string? outError = null;
+        UnsizedCallback retCb = (data, len) =>
+        {
+            outIdlArgs = Marshal.PtrToStringAnsi(data);
+        };
+        UnsizedCallback errCb = (data, len) =>
+        {
+            outError = Marshal.PtrToStringAnsi(data);
+        };
+
+        var sc = FromRust.agent_query(
+            this._ptr,
+            funcName,
+            funcArgs,
+            retCb,
+            errCb
         );
-        
-        [StructLayout(LayoutKind.Sequential)]
-        private readonly struct Response
+
+        if (sc == StateCode.Ok)
         {
-            public readonly IntPtr Ptr;
-            [MarshalAs(UnmanagedType.I1)]
-            public readonly bool IsErr;
+            if (outIdlArgs == null)
+                throw new FailedCallingRust("Failed on calling function of rust.");
+            else
+                return outIdlArgs;
         }
-        
-        public static HostKeyStore CreateKeyStore(string name, string password)
+        else
         {
-            var req = $@"{{""name"": ""{name}"", ""password"": ""{password}""}}";
-            var rsp = create_keystore(req);
-
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            var keyStore = JsonConvert.DeserializeObject<HostKeyStore>(data);
-
-            return keyStore;
-        }
-        
-        public static LoggedReceipt LoginByHost(HostKeyStore keyStore, string password)
-        {
-            var keyStoreStr = JsonConvert.SerializeObject(keyStore, new JsonSerializerSettings
-            {
-                ContractResolver = new DefaultContractResolver
-                {
-                    NamingStrategy = new CamelCaseNamingStrategy()
-                }
-            });
-            
-            var req = $@"{{""keyStore"": {keyStoreStr}, ""password"": ""{password}""}}";
-            var rsp = login_by_host(req);
-
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            var receipt = JsonConvert.DeserializeObject<LoggedReceipt>(data);
-
-            return receipt;
-        }
-        
-        public static void Logout(string principal)
-        {
-            var req = $@"{{""principal"": ""{principal}""}}";
-            var rsp = logout(req);
-
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-        }
-        
-        public static LoggedReceipt GetLoggedReceipt(string principal)
-        {
-            var req = $@"{{""principal"": ""{principal}""}}";
-            var rsp = get_logged_receipt(req);
-
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            var receipt = JsonConvert.DeserializeObject<LoggedReceipt>(data);
-
-            return receipt;
-        }
-
-        public static LoggedReceipt[] ListLoggedReceipt()
-        {
-            var rsp = list_logged_receipt();
-
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            var receipts = JsonConvert.DeserializeObject<LoggedReceipt[]>(data);
-
-            return receipts;
-        }
-
-        public static void RegisterIdl(string canisterId, string candidFile)
-        {
-            var rsp = ic_register_idl(canisterId, candidFile);
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-        }
-
-        public static string RemoveIdl(string canisterId)
-        {
-            var rsp = ic_remove_idl(canisterId);
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            if (data == "null") return null;
-
-            return data;
-        }
-        
-        public static string GetIdl(string canisterId)
-        {
-            var rsp = ic_get_idl(canisterId);
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            if (data == "null") return null;
-
-            return data;
-        }
-
-        public static string[] ListIdl()
-        {
-            var rsp = ic_list_idl();
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            var principals = JsonConvert.DeserializeObject<string[]>(data);
-
-            return principals;
-        }
-        
-        public static string QuerySync(string caller, string canisterId, string methodName, string argsRaw)
-        {
-            var rsp = ic_query_sync(caller, canisterId, methodName, argsRaw);
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            return data;
-        }
-        
-        public static string UpdateSync(string caller, string canisterId, string methodName, string argsRaw)
-        {
-            var rsp = ic_update_sync(caller, canisterId, methodName, argsRaw);
-            
-            var data = Marshal.PtrToStringAnsi(rsp.Ptr);
-            free_rsp(rsp);
-            
-            if (data == null) throw new Exception("inner error: data from rust-lib is null");
-            if (rsp.IsErr) throw new Exception(data);
-
-            return data;
+            if (outError == null)
+                throw new FailedCallingRust("Failed on getting error from rust.");
+            else
+                throw new ErrorFromRust(outError);
         }
     }
     
-    public struct HostKeyStore
+    public string Update(string funcName, string funcArgs)
     {
-        [JsonProperty]
-        public readonly string Encoded;
-        [JsonProperty]
-        public readonly string Principal;
-        [JsonProperty]
-        public HostKeyStoreMeta Meta { get; set; }
-
-        public HostKeyStore(string encoded, string principal, HostKeyStoreMeta meta)
+        string? outIdlArgs = null;
+        string? outError = null;
+        UnsizedCallback retCb = (data, len) =>
         {
-            Encoded = encoded;
-            Principal = principal;
-            Meta = meta;
-        }
+            outIdlArgs = Marshal.PtrToStringAnsi(data);
+        };
+        UnsizedCallback errCb = (data, len) =>
+        {
+            outError = Marshal.PtrToStringAnsi(data);
+        };
         
-        public override string ToString() => $"{{encoded: {Encoded}, principal: {Principal}, meta: {Meta}}}";
+        var sc = FromRust.agent_update(
+            this._ptr,
+            funcName,
+            funcArgs,
+            retCb,
+            errCb
+        );
+        
+        if (sc == StateCode.Ok)
+        {
+            if (outIdlArgs == null)
+                throw new FailedCallingRust("Failed on calling function of rust.");
+            else
+                return outIdlArgs;
+        }
+        else
+        {
+            if (outError == null)
+                throw new FailedCallingRust("Failed on getting error from rust.");
+            else
+                throw new ErrorFromRust(outError);
+        }
+    }
+    
+    public string Status()
+    {
+        string? outIdlArgs = null;
+        string? outError = null;
+        UnsizedCallback retCb = (data, len) =>
+        {
+            outIdlArgs = Marshal.PtrToStringAnsi(data);
+        };
+        UnsizedCallback errCb = (data, len) =>
+        {
+            outError = Marshal.PtrToStringAnsi(data);
+        };
+
+        var sc = FromRust.agent_status(
+            this._ptr,
+            retCb,
+            errCb
+        );
+
+        if (sc == StateCode.Ok)
+        {
+            if (outIdlArgs == null)
+                throw new FailedCallingRust("Failed on calling function of rust.");
+            else
+                return outIdlArgs;
+        }
+        else
+        {
+            if (outError == null)
+                throw new FailedCallingRust("Failed on getting error from rust.");
+            else
+                throw new ErrorFromRust(outError);
+        }
     }
 
-    public struct HostKeyStoreMeta
+    internal static class FromRust
     {
-        [JsonProperty]
-        public string Name { get; set; }
-        [JsonProperty]
-        public readonly DateTime WhenCreated;
-        [JsonProperty]
-        public readonly string StoreSyntax;
-        [JsonProperty]
-        public readonly string SigScheme;
-        [JsonProperty]
-        public readonly string[] EncryptScheme;
+        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern StateCode agent_create(
+            [MarshalAs(UnmanagedType.LPStr)] string url,
+            IntPtr[] fptr2Identity,
+            IdentityType identityType,
+            byte[] canisterIdBytes,
+            Int32 canisterIdBytesLen,
+            [MarshalAs(UnmanagedType.LPStr)] string didContent,
+            out IntPtr ptr2Agent,
+            UnsizedCallback errCb
+        );
 
-        public HostKeyStoreMeta(string name, DateTime whenCreated, string storeSyntax, string sigScheme,
-            string[] encryptScheme)
-        {
-            Name = name;
-            WhenCreated = whenCreated;
-            StoreSyntax = storeSyntax;
-            SigScheme = sigScheme;
-            EncryptScheme = encryptScheme;
-        }
-        
-        public override string ToString() =>
-            $"{{name: {Name}, whenCreated: {WhenCreated}, storeSyntax: {StoreSyntax}, sigScheme: {SigScheme}, encryptScheme: ({EncryptScheme[0]}, {EncryptScheme[1]})}}";
-    }
+        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern StateCode agent_query(
+            IntPtr ptr2Agent,
+            [MarshalAs(UnmanagedType.LPStr)] string funcName,
+            [MarshalAs(UnmanagedType.LPStr)] string funcArgs,
+            UnsizedCallback retCb,
+            UnsizedCallback errCb
+        );
 
-    public readonly struct LoggedReceipt
-    {
-        [JsonProperty]
-        public readonly string Principal;
-        [JsonProperty]
-        public readonly DateTime Deadline;
-        [JsonProperty]
-        public readonly LoggedType LoggedType;
+        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern StateCode agent_update(
+            IntPtr ptr2Agent,
+            [MarshalAs(UnmanagedType.LPStr)] string funcName,
+            [MarshalAs(UnmanagedType.LPStr)] string funcArgs,
+            UnsizedCallback retCb,
+            UnsizedCallback errCb
+        );
 
-        public LoggedReceipt(string principal, DateTime deadline, LoggedType loggedType)
-        {
-            Principal = principal;
-            Deadline = deadline;
-            LoggedType = loggedType;
-        }
-        
-        public override string ToString() =>
-            $"{{principal: {Principal}, deadline: {Deadline}, loggedType: {LoggedType}}}";
-    }
+        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern StateCode agent_status(
+            IntPtr ptr2Agent,
+            UnsizedCallback retCb,
+            UnsizedCallback errCb
+        );
 
-    public enum LoggedType
-    {
-        II = 0,
-        Host = 1,
-        Ext = 2,
+        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern StateCode agent_free(
+            IntPtr ptr2Agent
+        );
     }
 }
+#nullable disable
