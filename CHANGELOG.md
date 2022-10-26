@@ -17,3 +17,9 @@
 - 📝 Doc: Add project README.md & scripts README.md;
 
 - 📄 Lic: Add project license;
+
+## 0.2.0-dev (2022-10-28)
+
+- ✨ New: Refactor the architecture of agent-unity;
+
+- 🐛 Fix some bugs;
