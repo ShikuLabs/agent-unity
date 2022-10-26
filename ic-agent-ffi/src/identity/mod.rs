@@ -127,7 +127,7 @@ pub extern "C" fn identity_sign(
             StateCode::Ok
         }
         Err(err) => {
-            ret_unsized(err_cb, &err);
+            ret_unsized(err_cb, err);
 
             StateCode::Err
         }
