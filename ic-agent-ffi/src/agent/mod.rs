@@ -375,7 +375,7 @@ pub(crate) fn __todo_replace_this_by_macro(
 mod tests {
     use super::*;
     use crate::identity::{identity_anonymous, identity_basic_random, identity_secp256k1_random};
-    use crate::tests_util::{apply_fptr, apply_ptr};
+    use crate::tests_util::{apply_fptr, apply_ptr, panic_err_cb};
     use ic_agent::identity::BasicIdentity;
     use ic_types::Principal;
     use libc::c_int;
@@ -549,7 +549,7 @@ mod tests {
                 b"lookup\0".as_ptr() as *const c_char,
                 b"(1974211: nat64)\0".as_ptr() as *const c_char,
                 ret_cb,
-                empty_cb,
+                panic_err_cb,
             ),
             StateCode::Ok
         );
@@ -599,7 +599,7 @@ mod tests {
                 b"create_challenge\0".as_ptr() as *const c_char,
                 b"()\0".as_ptr() as *const c_char,
                 empty_cb,
-                empty_cb,
+                panic_err_cb,
             ),
             StateCode::Ok
         );
@@ -643,7 +643,7 @@ mod tests {
             StateCode::Ok
         );
 
-        assert_eq!(agent_status(ptr, empty_cb, empty_cb,), StateCode::Ok);
+        assert_eq!(agent_status(ptr, empty_cb, panic_err_cb), StateCode::Ok);
 
         unsafe {
             let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);

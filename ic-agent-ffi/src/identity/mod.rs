@@ -165,7 +165,7 @@ pub(crate) fn __todo_replace_this_by_macro(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests_util::apply_fptr;
+    use crate::tests_util::{apply_fptr, empty_err_cb};
     use ic_types::Principal;
 
     const BASIC_IDENTITY_FILE: &'static str = "-----BEGIN PRIVATE KEY-----
@@ -181,8 +181,6 @@ MHQCAQEEIAgy7nZEcVHkQ4Z1Kdqby8SwyAiyKDQmtbEHTIM+WNeBoAcGBSuBBAAK
 oUQDQgAEgO87rJ1ozzdMvJyZQ+GABDqUxGLvgnAnTlcInV3NuhuPv4O3VGzMGzeB
 N3d26cRxD99TPtm8uo2OuzKhSiq6EQ==
 -----END EC PRIVATE KEY-----\0";
-
-    extern "C" fn empty_err_cb(_data: *const u8, _len: c_int) {}
 
     #[test]
     fn identity_anonymous_should_work() {

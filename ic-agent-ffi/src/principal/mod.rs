@@ -125,9 +125,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tests_util::empty_err_cb;
     use libc::c_int;
-
-    extern "C" fn empty_err_cb(_data: *const u8, _len: c_int) {}
 
     // TODO: Use macro to reduce the generation of callbacks.
 

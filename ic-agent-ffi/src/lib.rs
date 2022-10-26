@@ -1,6 +1,8 @@
 #![feature(unsize)]
 #![feature(concat_bytes)]
 
+extern crate core;
+
 use anyhow::Error as AnyErr;
 use anyhow::Result as AnyResult;
 use libc::c_int;
@@ -48,6 +50,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests_util {
+    use libc::c_int;
+    use std::ffi::CStr;
     use std::marker::Unsize;
 
     #[inline]
@@ -64,6 +68,15 @@ pub(crate) mod tests_util {
     #[inline]
     pub const fn apply_ptr<ST>() -> *const ST {
         0u64 as *const ST
+    }
+
+    pub extern "C" fn empty_err_cb(_data: *const u8, _len: c_int) {}
+
+    pub extern "C" fn panic_err_cb(data: *const u8, _len: c_int) {
+        let c_str = unsafe { CStr::from_ptr(data as *const i8) };
+        let str = c_str.to_str().unwrap();
+
+        panic!("{}", str);
     }
 }
 
