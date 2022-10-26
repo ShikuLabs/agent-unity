@@ -115,7 +115,7 @@ where
             StateCode::Ok
         }
         Err(e) => {
-            ret_unsized(err_cb, e.to_string());
+            ret_unsized(err_cb, e.to_string() + "\0");
 
             StateCode::Err
         }

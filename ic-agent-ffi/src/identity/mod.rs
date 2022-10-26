@@ -155,7 +155,7 @@ pub(crate) fn __todo_replace_this_by_macro(
             StateCode::Ok
         }
         Err(e) => {
-            ret_unsized(err_cb, e.to_string());
+            ret_unsized(err_cb, e.to_string() + "\0");
 
             StateCode::Err
         }

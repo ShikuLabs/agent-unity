@@ -4,6 +4,7 @@ use anyhow::{anyhow, bail, Context};
 use candid::types::{Function, Type};
 use candid::{check_prog, CandidType, Decode, Deserialize, IDLArgs, IDLProg, TypeEnv};
 use ic_agent::agent::http_transport::ReqwestHttpReplicaV2Transport;
+use ic_agent::agent::status::Status;
 use ic_agent::identity::{AnonymousIdentity, Identity, Secp256k1Identity};
 use ic_agent::Agent;
 use ic_types::Principal;
@@ -11,9 +12,9 @@ use ic_utils::interfaces::management_canister::builders::{CanisterInstall, Canis
 use ic_utils::interfaces::management_canister::MgmtMethod;
 use libc::{c_char, c_int};
 use std::ffi::{CStr, CString};
+use std::fmt::Display;
 use std::str::FromStr;
 use std::sync::Arc;
-use ic_agent::agent::status::Status;
 use tokio::runtime;
 
 pub struct AgentWrapper {
@@ -78,9 +79,7 @@ impl AgentWrapper {
     pub async fn status(&self) -> AnyResult<Status> {
         let agent = self.create_agent()?;
 
-        agent.status()
-            .await
-            .map_err(AnyErr::from)
+        agent.status().await.map_err(AnyErr::from)
     }
 
     fn parse_candid_file(&self) -> AnyResult<(TypeEnv, Option<Type>)> {
@@ -255,20 +254,7 @@ pub extern "C" fn agent_create(
         })
     };
 
-    match once() {
-        Ok(agent_w) => {
-            unsafe {
-                ret_thin_ptr(p2ptr_agent_w, agent_w);
-            }
-
-            StateCode::Ok
-        }
-        Err(e) => {
-            ret_unsized(err_cb, e.to_string());
-
-            StateCode::Err
-        }
-    }
+    __todo_replace_this_by_macro(p2ptr_agent_w, err_cb, once())
 }
 
 #[no_mangle]
@@ -290,9 +276,7 @@ pub extern "C" fn agent_query(
         // Don't drop the [`AgentWrapper`]
         Box::into_raw(agent_w);
 
-        let rst_cstr = CString::new(rst_idl.to_string())
-            .map_err(AnyErr::from)?
-            .into_bytes_with_nul();
+        let rst_cstr = rst_idl.to_string() + "\0";
 
         Ok(rst_cstr)
     };
@@ -352,6 +336,34 @@ pub extern "C" fn agent_status(
     };
 
     crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
+}
+
+#[no_mangle]
+pub extern "C" fn agent_free(ptr_agent_w: *const AgentWrapper) {
+    let boxed = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
+
+    drop(boxed);
+}
+
+pub(crate) fn __todo_replace_this_by_macro(
+    p2ptr: *mut *const AgentWrapper,
+    err_cb: UnsizedCallBack,
+    r: Result<AgentWrapper, impl Display>,
+) -> StateCode {
+    match r {
+        Ok(t) => {
+            unsafe {
+                ret_thin_ptr(p2ptr, t);
+            }
+
+            StateCode::Ok
+        }
+        Err(e) => {
+            ret_unsized(err_cb, e.to_string() + "\0");
+
+            StateCode::Err
+        }
+    }
 }
 
 #[cfg(test)]
@@ -626,14 +638,7 @@ mod tests {
             StateCode::Ok
         );
 
-        assert_eq!(
-            agent_status(
-                ptr,
-                empty_cb,
-                empty_cb,
-            ),
-            StateCode::Ok
-        );
+        assert_eq!(agent_status(ptr, empty_cb, empty_cb,), StateCode::Ok);
 
         unsafe {
             let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
@@ -650,6 +655,34 @@ mod tests {
                 agent_w_wrap.did_content,
                 cbytes_to_str(II_DID_CONTENT_BYTES)
             );
+        }
+    }
+
+    #[test]
+    fn agent_free_should_work() {
+        let mut fptr = apply_fptr::<AnonymousIdentity, _>();
+        identity_anonymous(&mut fptr);
+        let mut ptr = apply_ptr::<AgentWrapper>();
+
+        assert_eq!(
+            agent_create(
+                IC_NET_BYTES.as_ptr() as *const c_char,
+                &mut fptr,
+                IdentityType::Anonymous,
+                II_CANISTER_ID_BYTES.as_ptr(),
+                II_CANISTER_ID_BYTES.len() as c_int,
+                II_DID_CONTENT_BYTES.as_ptr() as *const c_char,
+                &mut ptr,
+                empty_cb
+            ),
+            StateCode::Ok
+        );
+
+        agent_free(ptr);
+
+        unsafe {
+            let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
+            assert!(identity_boxed.sender().is_ok());
         }
     }
 }
