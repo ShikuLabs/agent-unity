@@ -1,12 +1,9 @@
 {
-    "name": "shikulabs",
+    "name": "shikulabs.ic-agent.Runtime",
     "rootNamespace": "",
     "references": [],
     "includePlatforms": [],
-    "excludePlatforms": [
-        "macOSStandalone",
-        "WindowsStandalone64"
-    ],
+    "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
