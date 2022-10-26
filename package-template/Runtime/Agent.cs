@@ -162,7 +162,7 @@ public class Agent
 
     internal static class FromRust
     {
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode agent_create(
             [MarshalAs(UnmanagedType.LPStr)] string url,
             IntPtr[] fptr2Identity,
@@ -174,7 +174,7 @@ public class Agent
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode agent_query(
             IntPtr ptr2Agent,
             [MarshalAs(UnmanagedType.LPStr)] string funcName,
@@ -183,7 +183,7 @@ public class Agent
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode agent_update(
             IntPtr ptr2Agent,
             [MarshalAs(UnmanagedType.LPStr)] string funcName,
@@ -192,14 +192,14 @@ public class Agent
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode agent_status(
             IntPtr ptr2Agent,
             UnsizedCallback retCb,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode agent_free(
             IntPtr ptr2Agent
         );

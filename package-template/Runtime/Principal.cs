@@ -167,24 +167,24 @@ public class Principal : IEquatable<Principal>
 
     internal static class FromRust
     {
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void principal_management_canister(
             [MarshalAs(UnmanagedType.FunctionPtr)] UnsizedCallback retCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void principal_self_authenticating(
             byte[] publicKey,
             Int32 publicKeyLen,
             [MarshalAs(UnmanagedType.FunctionPtr)] UnsizedCallback retCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode principal_anonymous(
             [MarshalAs(UnmanagedType.FunctionPtr)] UnsizedCallback retCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode principal_from_bytes(
             byte[] bytes,
             Int32 bytesLen,
@@ -192,14 +192,14 @@ public class Principal : IEquatable<Principal>
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode principal_from_text(
             [MarshalAs(UnmanagedType.LPStr)] string text,
             UnsizedCallback retCb,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode principal_to_text(
             byte[] bytes,
             Int32 bytesLen,
