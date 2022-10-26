@@ -56,6 +56,7 @@ impl HostKeyStore {
         })
     }
 
+    #[allow(dead_code)]
     pub fn random(name: &str, pwd: &str) -> anyhow::Result<Self> {
         let rng = SystemRandom::new();
         let pkcs8 = Ed25519KeyPair::generate_pkcs8(&rng)?;
@@ -63,6 +64,7 @@ impl HostKeyStore {
         Self::from_pkcs8(name, pwd, pkcs8.as_ref())
     }
 
+    #[allow(dead_code)]
     pub fn from_pkcs8(name: &str, pwd: &str, pkcs8: &[u8]) -> anyhow::Result<Self> {
         let ed25519 = Ed25519KeyPair::from_pkcs8(pkcs8)?;
         let identity = BasicIdentity::from_key_pair(ed25519);
@@ -77,6 +79,7 @@ impl HostKeyStore {
         })
     }
 
+    #[allow(dead_code)]
     pub fn to_identity(&self, pwd: &str) -> anyhow::Result<BasicIdentity> {
         let pkcs8 = Self::decode_then_decrypt(self.encoded.clone(), pwd)?;
 

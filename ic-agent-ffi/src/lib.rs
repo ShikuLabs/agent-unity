@@ -3,21 +3,8 @@
 
 use anyhow::Error as AnyErr;
 use anyhow::Result as AnyResult;
-
-use chrono::{DateTime, Utc};
-use ic_agent::Identity;
-use ic_types::Principal;
-use lazy_static::lazy_static;
-use libc::{c_char, c_int};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::HashMap;
-use std::ffi::{CStr, CString};
-use std::fmt::Display;
+use libc::c_int;
 use std::marker::Unsize;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
-use tokio::runtime;
 
 // TODO: Delete it
 mod host;
