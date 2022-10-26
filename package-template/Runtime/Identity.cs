@@ -187,40 +187,40 @@ public class Identity
 
     internal static class FromRust
     {
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void identity_anonymous(IntPtr[] p2FPtr);
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_basic_random(
             IntPtr[] p2FPtr,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_basic_from_pem(
             [MarshalAs(UnmanagedType.LPStr)] string pem,
             IntPtr[] p2FPtr,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern void identity_secp256k1_random(IntPtr[] p2FPtr);
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_secp256k1_from_pem(
             [MarshalAs(UnmanagedType.LPStr)] string pem,
             IntPtr[] p2FPtr,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_sender(
             IntPtr[] p2FPtr,
             UnsizedCallback retCb,
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_sign(
             byte[] bytes,
             Int32 bytesLen,
@@ -230,7 +230,7 @@ public class Identity
             UnsizedCallback errCb
         );
 
-        [DllImport("ic-agent-ffi", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("ic-agent", CallingConvention = CallingConvention.Cdecl)]
         internal static extern StateCode identity_free(IntPtr[] p2FPtr);
     }
 }

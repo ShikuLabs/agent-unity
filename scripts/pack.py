@@ -95,7 +95,7 @@ def pack(release, input, compress, version, output):
         os_ = map_os(meta['os'])
 
         ext = pathlib.Path(path).suffix.replace('.', '')
-        dst_path = f'{pack_temp_dir}/Plugins/{arch}/{os_}/ic-agent-ffi.{ext}'
+        dst_path = f'{pack_temp_dir}/Plugins/{arch}/{os_}/ic-agent.{ext}'
 
         # if there has had a library already, jump over if the current library is `native`
         if os.path.isfile(dst_path) and input_ == 'native': continue
