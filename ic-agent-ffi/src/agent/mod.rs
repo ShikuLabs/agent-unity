@@ -45,7 +45,7 @@ impl AgentWrapper {
         let effective_canister_id =
             Self::get_effective_canister_id(func_args, args_blb.as_slice(), &self.canister_id)?;
 
-        let agent = self.create_agent()?;
+        let agent = self.create_agent().await?;
 
         let rst_blb = agent
             .query(&self.canister_id, func_name)
@@ -68,7 +68,7 @@ impl AgentWrapper {
         let effective_canister_id =
             Self::get_effective_canister_id(func_args, args_blb.as_slice(), &self.canister_id)?;
 
-        let agent = self.create_agent()?;
+        let agent = self.create_agent().await?;
 
         let rst_blb = agent
             .update(&self.canister_id, func_name)
@@ -88,7 +88,7 @@ impl AgentWrapper {
     }
 
     pub async fn status(&self) -> AnyResult<Status> {
-        let agent = self.create_agent()?;
+        let agent = self.create_agent().await?;
 
         agent.status().await.map_err(AnyErr::from)
     }
@@ -102,14 +102,18 @@ impl AgentWrapper {
         Ok((env, actor))
     }
 
-    fn create_agent(&self) -> AnyResult<Agent> {
+    async fn create_agent(&self) -> AnyResult<Agent> {
         let transport = ReqwestHttpReplicaV2Transport::create(&self.url).map_err(AnyErr::from)?;
 
-        Agent::builder()
+        let agent = Agent::builder()
             .with_transport(transport)
             .with_arc_identity(self.identity.clone())
             .build()
-            .map_err(AnyErr::from)
+            .map_err(AnyErr::from)?;
+
+        let _ = agent.fetch_root_key().await.map_err(AnyErr::from)?;
+
+        Ok(agent)
     }
 
     fn get_method_signature(
