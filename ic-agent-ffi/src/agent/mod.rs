@@ -111,7 +111,7 @@ impl AgentWrapper {
             .build()
             .map_err(AnyErr::from)?;
 
-        let _ = agent.fetch_root_key().await.map_err(AnyErr::from)?;
+        agent.fetch_root_key().await.map_err(AnyErr::from)?;
 
         Ok(agent)
     }
