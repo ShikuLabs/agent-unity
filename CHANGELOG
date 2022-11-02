@@ -23,3 +23,7 @@
 - ✨ New: Refactor the architecture of agent-unity;
 
 - 🐛 Fix some bugs;
+
+## 0.2.1 (2022-11-02)
+
+- 🐛 Fix `Fail to verify certificate in development update calls`
