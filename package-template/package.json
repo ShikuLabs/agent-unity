@@ -27,7 +27,7 @@
     {
       "displayName": "2_Agent-Example",
       "description": "Contains example code showing how to create [`Agent`]",
-      "path": "Samples/2_AgentIdentity"
+      "path": "Samples/2_SamplesAgent"
     }
   ]
 }
