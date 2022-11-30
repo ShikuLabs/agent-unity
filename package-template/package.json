@@ -1,6 +1,6 @@
 {
   "name": "com.shikulabs.ic-agent",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "displayName": "IC Agent",
   "description": "The package brings the IC ecosystem to Unity, allowing Unity developers to call the functions of canisters on IC, create encrypted account files.",
   "unity": "2021.3",
