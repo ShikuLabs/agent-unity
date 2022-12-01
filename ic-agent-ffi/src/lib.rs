@@ -14,6 +14,7 @@ mod host;
 mod agent;
 mod identity;
 mod principal;
+mod candid;
 
 /// NOTE: New Things
 
