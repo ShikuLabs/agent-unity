@@ -8,9 +8,6 @@ use anyhow::Result as AnyResult;
 use libc::c_int;
 use std::marker::Unsize;
 
-// TODO: Delete it
-mod host;
-
 mod agent;
 mod identity;
 mod principal;
