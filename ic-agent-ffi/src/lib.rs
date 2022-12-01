@@ -9,9 +9,9 @@ use libc::c_int;
 use std::marker::Unsize;
 
 mod agent;
+mod candid;
 mod identity;
 mod principal;
-mod candid;
 
 /// NOTE: New Things
 
