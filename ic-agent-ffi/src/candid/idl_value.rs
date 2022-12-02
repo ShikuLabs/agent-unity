@@ -165,6 +165,57 @@ pub extern "C" fn idl_value_as_principal(
 }
 
 #[no_mangle]
+pub extern "C" fn idl_value_as_service(
+    ptr: *const IDLValue,
+    ret_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        &IDLValue::Service(v) => Ok(v),
+        _ => Err(anyhow!("Not match the actual type of value")),
+    };
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_as_func(
+    ptr: *const IDLValue,
+    ret_cb_01: UnsizedCallBack,
+    ret_cb_02: UnsizedCallBack,
+    err_cb: UnsizedCallBack,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        IDLValue::Func(p, s) => Ok((*p, s.clone() + "\0")),
+        _ => Err(anyhow!("Not match the actual type of value")),
+    };
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    match r {
+        Ok((p, s)) => {
+            ret_unsized(ret_cb_01, p);
+            ret_unsized(ret_cb_02, s);
+
+            StateCode::Ok
+        }
+        Err(e) => {
+            ret_unsized(err_cb, e.to_string() + "\0");
+
+            StateCode::Err
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn idl_value_is_none(ptr: *const IDLValue, err_cb: UnsizedCallBack) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -665,6 +716,60 @@ mod tests {
 
         assert_eq!(
             idl_value_as_principal(ptr, ret_cb, empty_err_cb),
+            StateCode::Ok
+        );
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_service_should_work() {
+        const EXPECTED: Principal = Principal::anonymous();
+        const IDL_VALUE: IDLValue = IDLValue::Service(EXPECTED);
+
+        extern "C" fn ret_cb(data: *const u8, len: c_int) {
+            let slice = unsafe { std::slice::from_raw_parts(data, len as usize) };
+
+            let principal = Principal::from_slice(slice);
+            assert_eq!(EXPECTED, principal);
+        }
+
+        let idl_value_boxed = Box::new(IDL_VALUE);
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        assert_eq!(
+            idl_value_as_service(ptr, ret_cb, empty_err_cb),
+            StateCode::Ok
+        );
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_func_should_work() {
+        const EXPECTED_01: Principal = Principal::anonymous();
+        const EXPECTED_02: &str = "IDL_VALUE_AS_FUNC_SHOULD_WORK";
+
+        extern "C" fn ret_cb_01(data: *const u8, len: c_int) {
+            let slice = unsafe { std::slice::from_raw_parts(data, len as usize) };
+
+            let principal = Principal::from_slice(slice);
+            assert_eq!(EXPECTED_01, principal);
+        }
+
+        extern "C" fn ret_cb_02(data: *const u8, _len: c_int) {
+            let c_str = unsafe { CStr::from_ptr(data as *const i8) };
+            let str = c_str.to_str().unwrap();
+
+            assert_eq!(EXPECTED_02, str);
+        }
+
+        let idl_value = IDLValue::Func(EXPECTED_01, EXPECTED_02.to_string());
+        let idl_value_boxed = Box::new(idl_value);
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        assert_eq!(
+            idl_value_as_func(ptr, ret_cb_01, ret_cb_02, empty_err_cb),
             StateCode::Ok
         );
 
