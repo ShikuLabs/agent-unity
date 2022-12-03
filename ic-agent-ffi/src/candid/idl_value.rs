@@ -1,6 +1,6 @@
 use crate::{ret_thin_ptr, ret_unsized, AnyErr, StateCode, UnsizedCallBack};
 use anyhow::anyhow;
-use candid::parser::value::{IDLField, IDLValue, VariantValue};
+use candid::parser::value::{IDLField, IDLValue};
 use libc::c_char;
 use std::ffi::CStr;
 use std::fmt::Display;
@@ -677,6 +677,8 @@ pub(crate) fn __todo_replace_this_by_macro_primitive<T>(
 mod tests {
     use super::*;
     use crate::tests_util::{apply_ptr, empty_err_cb};
+    use candid::parser::value::VariantValue;
+    use candid::types::Label;
     use candid::{Int, Nat};
     use ic_types::Principal;
     use libc::c_int;
@@ -860,6 +862,147 @@ mod tests {
         );
 
         assert_eq!(EXPECTED, out_f64);
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_opt_should_work() {
+        const IDL_VALUE: IDLValue = IDLValue::Bool(true);
+
+        let idl_value = IDLValue::Opt(Box::new(IDL_VALUE));
+        let idl_value_boxed = Box::new(idl_value);
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        let mut p2ptr_opt = apply_ptr::<IDLValue>();
+
+        assert_eq!(
+            idl_value_as_opt(ptr, &mut p2ptr_opt, empty_err_cb),
+            StateCode::Ok
+        );
+
+        let idl_value = unsafe { Box::from_raw(p2ptr_opt as *mut IDLValue) };
+        assert_eq!(&IDL_VALUE, idl_value.deref());
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_vec_should_work() {
+        const IDL_VALUE_LIST: [IDLValue; 3] = [
+            IDLValue::Bool(true),
+            IDLValue::Principal(Principal::anonymous()),
+            IDLValue::Int64(-12),
+        ];
+
+        extern "C" fn ret_cb(data: *const *const IDLValue, len: c_int) {
+            for i in 0..len as usize {
+                unsafe {
+                    let val_ptr = *data.offset(i as isize);
+                    let idl_value = Box::from_raw(val_ptr as *mut IDLValue);
+                    assert_eq!(&IDL_VALUE_LIST[i], idl_value.deref());
+                }
+            }
+        }
+
+        let idl_value_boxed = Box::new(IDLValue::Vec(IDL_VALUE_LIST.to_vec()));
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        assert_eq!(idl_value_as_vec(ptr, ret_cb, empty_err_cb), StateCode::Ok);
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_record_should_work() {
+        const KEYS: [&str; 3] = ["Key01", "123", "Key03"];
+        const VALS: [IDLValue; 3] = [
+            IDLValue::Bool(true),
+            IDLValue::Principal(Principal::anonymous()),
+            IDLValue::Int64(-12),
+        ];
+
+        extern "C" fn ret_cb_01(data: *const *const u8, len: c_int) {
+            for i in 0..len as usize {
+                unsafe {
+                    let id_ptr = *data.offset(i as isize);
+
+                    let c_str = CStr::from_ptr(id_ptr as *const c_char);
+                    let str = c_str.to_str().unwrap();
+                    assert_eq!(KEYS[i], str);
+                }
+            }
+        }
+
+        extern "C" fn ret_cb_02(data: *const *const IDLValue, len: c_int) {
+            for i in 0..len as usize {
+                unsafe {
+                    let val_ptr = *data.offset(i as isize);
+                    let idl_value = Box::from_raw(val_ptr as *mut IDLValue);
+                    assert_eq!(&VALS[i], idl_value.deref());
+                }
+            }
+        }
+
+        let idl_value = IDLValue::Record(vec![
+            IDLField {
+                id: Label::Named("Key01".to_string()),
+                val: IDLValue::Bool(true),
+            },
+            IDLField {
+                id: Label::Id(123),
+                val: IDLValue::Principal(Principal::anonymous()),
+            },
+            IDLField {
+                id: Label::Named("Key03".to_string()),
+                val: IDLValue::Int64(-12),
+            },
+        ]);
+        let idl_value_boxed = Box::new(idl_value);
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        assert_eq!(
+            idl_value_as_record(ptr, ret_cb_01, ret_cb_02, empty_err_cb),
+            StateCode::Ok
+        );
+
+        idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_as_variant_should_work() {
+        const ID: &str = "Key";
+        const IDL_VALUE: IDLValue = IDLValue::Bool(true);
+        const CODE: u64 = 0;
+
+        extern "C" fn ret_cb(data: *const u8, _len: c_int) {
+            let c_str = unsafe { CStr::from_ptr(data as *const i8) };
+            let id = c_str.to_str().unwrap();
+
+            assert_eq!(ID, id);
+        }
+
+        let idl_field = IDLField {
+            id: Label::Named(ID.to_string()),
+            val: IDL_VALUE,
+        };
+        let variant_value = VariantValue(Box::new(idl_field), CODE);
+
+        let idl_value = IDLValue::Variant(variant_value);
+        let idl_value_boxed = Box::new(idl_value);
+        let ptr = Box::into_raw(idl_value_boxed);
+
+        let mut ptr_val = apply_ptr::<IDLValue>();
+        let mut out_u64 = 1u64;
+
+        assert_eq!(
+            idl_value_as_variant(ptr, ret_cb, &mut ptr_val, &mut out_u64, empty_err_cb),
+            StateCode::Ok
+        );
+
+        let idl_value = unsafe { Box::from_raw(ptr_val as *mut IDLValue) };
+        assert_eq!(&IDL_VALUE, idl_value.deref());
+        assert_eq!(CODE, out_u64);
 
         idl_value_free(ptr);
     }
