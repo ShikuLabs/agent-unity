@@ -1,15 +1,16 @@
 use crate::{ret_thin_ptr, ret_unsized, AnyErr, StateCode, UnsizedCallBack};
 use anyhow::anyhow;
-use candid::parser::value::IDLValue;
+use candid::parser::value::{IDLField, IDLValue, VariantValue};
 use libc::c_char;
 use std::ffi::CStr;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::str::FromStr;
 
 // const NOT_MATCH_TYPE: AnyErr
 
 #[no_mangle]
-pub extern "C" fn idl_value_to_text(ptr: *const IDLValue, ret_cb: UnsizedCallBack) {
+pub extern "C" fn idl_value_to_text(ptr: *const IDLValue, ret_cb: UnsizedCallBack<u8>) {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
     let idl_str = boxed.to_string() + "\0";
@@ -24,7 +25,7 @@ pub extern "C" fn idl_value_to_text(ptr: *const IDLValue, ret_cb: UnsizedCallBac
 pub extern "C" fn idl_value_from_text(
     text: *const c_char,
     p2ptr: *mut *const IDLValue,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let text = unsafe { CStr::from_ptr(text).to_str().map_err(AnyErr::from) };
 
@@ -43,7 +44,7 @@ pub extern "C" fn idl_value_from_text(
 }
 
 #[no_mangle]
-pub extern "C" fn idl_value_type(ptr: *const IDLValue, ret_cb: UnsizedCallBack) {
+pub extern "C" fn idl_value_type(ptr: *const IDLValue, ret_cb: UnsizedCallBack<u8>) {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
     let type_str = boxed.value_ty().to_string() + "\0";
@@ -58,7 +59,7 @@ pub extern "C" fn idl_value_type(ptr: *const IDLValue, ret_cb: UnsizedCallBack) 
 pub extern "C" fn idl_value_as_bool(
     ptr: *const IDLValue,
     ptr_bool: *mut bool,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -74,7 +75,10 @@ pub extern "C" fn idl_value_as_bool(
 }
 
 #[no_mangle]
-pub extern "C" fn idl_value_is_null(ptr: *const IDLValue, err_cb: UnsizedCallBack) -> StateCode {
+pub extern "C" fn idl_value_is_null(
+    ptr: *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
     let r = match boxed.as_ref() {
@@ -91,8 +95,8 @@ pub extern "C" fn idl_value_is_null(ptr: *const IDLValue, err_cb: UnsizedCallBac
 #[no_mangle]
 pub extern "C" fn idl_value_as_text(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -110,8 +114,8 @@ pub extern "C" fn idl_value_as_text(
 #[no_mangle]
 pub extern "C" fn idl_value_as_number(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -130,7 +134,7 @@ pub extern "C" fn idl_value_as_number(
 pub extern "C" fn idl_value_as_float64(
     ptr: *const IDLValue,
     ptr_f64: *mut f64,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -146,10 +150,168 @@ pub extern "C" fn idl_value_as_float64(
 }
 
 #[no_mangle]
+pub extern "C" fn idl_value_as_opt(
+    ptr: *const IDLValue,
+    p2ptr_opt: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        IDLValue::Opt(v) => Ok(v.deref().clone()),
+        _ => Err(anyhow!("Not match the actual type of value")),
+    };
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    __todo_replace_this_by_macro_unsized(p2ptr_opt, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_as_vec(
+    ptr: *const IDLValue,
+    ret_cb: UnsizedCallBack<*const IDLValue>,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        IDLValue::Vec(v) => Ok(v.clone()),
+        _ => Err(anyhow!("Not match the actual type of value")),
+    }
+    .map(|mut vec| {
+        let mut ptrs = Vec::new();
+
+        for idl_value in vec.drain(..) {
+            let boxed = Box::new(idl_value);
+            let ptr = Box::into_raw(boxed);
+
+            ptrs.push(ptr as *const IDLValue);
+        }
+
+        ptrs
+    });
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_as_record(
+    ptr: *const IDLValue,
+    ret_cb_01: UnsizedCallBack<*const u8>,
+    ret_cb_02: UnsizedCallBack<*const IDLValue>,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        IDLValue::Record(v) => {
+            let mut fields = v.clone();
+
+            let mut ids = Vec::new();
+            let mut vals = Vec::new();
+
+            for IDLField { id, val } in fields.drain(..) {
+                let id = id.to_string() + "\0";
+                ids.push(id);
+                vals.push(val);
+            }
+
+            Ok((ids, vals))
+        }
+        _ => Err(anyhow!("Not match the actual type of value")),
+    };
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    match r {
+        Ok((ids, mut vals)) => {
+            // Catch all pointers from ids
+            let id_ptrs: Vec<*const u8> = ids
+                .iter()
+                .map(|id| {
+                    let slice: &[u8] = id.as_ref();
+                    slice.as_ptr()
+                })
+                .collect();
+
+            let val_ptrs: Vec<*const IDLValue> = vals
+                .drain(..)
+                .map(|val| {
+                    let boxed = Box::new(val);
+                    let ptr = Box::into_raw(boxed);
+
+                    ptr as *const IDLValue
+                })
+                .collect();
+
+            ret_unsized(ret_cb_01, id_ptrs);
+            ret_unsized(ret_cb_02, val_ptrs);
+
+            StateCode::Ok
+        }
+        Err(e) => {
+            ret_unsized(err_cb, e.to_string() + "\0");
+
+            StateCode::Err
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_as_variant(
+    ptr: *const IDLValue,
+    id_cb: UnsizedCallBack<u8>,
+    p2ptr_val: *mut *const IDLValue,
+    ptr_u64: *mut u64,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+
+    let r = match boxed.as_ref() {
+        IDLValue::Variant(v) => {
+            let id = v.0.id.to_string() + "\0";
+            let val = v.0.val.clone();
+            let code = v.1;
+
+            Ok((id, val, code))
+        }
+        _ => Err(anyhow!("Not match the actual type of value")),
+    };
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    match r {
+        Ok((id, val, code)) => {
+            ret_unsized(id_cb, id);
+            unsafe {
+                ret_thin_ptr(p2ptr_val, val);
+            }
+            unsafe {
+                *ptr_u64 = code;
+            }
+
+            StateCode::Ok
+        }
+        Err(e) => {
+            ret_unsized(err_cb, e.to_string() + "\0");
+
+            StateCode::Err
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn idl_value_as_principal(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -167,8 +329,8 @@ pub extern "C" fn idl_value_as_principal(
 #[no_mangle]
 pub extern "C" fn idl_value_as_service(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -186,9 +348,9 @@ pub extern "C" fn idl_value_as_service(
 #[no_mangle]
 pub extern "C" fn idl_value_as_func(
     ptr: *const IDLValue,
-    ret_cb_01: UnsizedCallBack,
-    ret_cb_02: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb_01: UnsizedCallBack<u8>,
+    ret_cb_02: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -216,7 +378,10 @@ pub extern "C" fn idl_value_as_func(
 }
 
 #[no_mangle]
-pub extern "C" fn idl_value_is_none(ptr: *const IDLValue, err_cb: UnsizedCallBack) -> StateCode {
+pub extern "C" fn idl_value_is_none(
+    ptr: *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
     let r = match boxed.as_ref() {
@@ -233,8 +398,8 @@ pub extern "C" fn idl_value_is_none(ptr: *const IDLValue, err_cb: UnsizedCallBac
 #[no_mangle]
 pub extern "C" fn idl_value_as_int(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -252,8 +417,8 @@ pub extern "C" fn idl_value_as_int(
 #[no_mangle]
 pub extern "C" fn idl_value_as_nat(
     ptr: *const IDLValue,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -272,7 +437,7 @@ pub extern "C" fn idl_value_as_nat(
 pub extern "C" fn idl_value_as_nat8(
     ptr: *const IDLValue,
     ptr_u8: *mut u8,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -291,7 +456,7 @@ pub extern "C" fn idl_value_as_nat8(
 pub extern "C" fn idl_value_as_nat16(
     ptr: *const IDLValue,
     ptr_u16: *mut u16,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -310,7 +475,7 @@ pub extern "C" fn idl_value_as_nat16(
 pub extern "C" fn idl_value_as_nat32(
     ptr: *const IDLValue,
     ptr_u32: *mut u32,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -329,7 +494,7 @@ pub extern "C" fn idl_value_as_nat32(
 pub extern "C" fn idl_value_as_nat64(
     ptr: *const IDLValue,
     ptr_u64: *mut u64,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -348,7 +513,7 @@ pub extern "C" fn idl_value_as_nat64(
 pub extern "C" fn idl_value_as_int8(
     ptr: *const IDLValue,
     ptr_i8: *mut i8,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -367,7 +532,7 @@ pub extern "C" fn idl_value_as_int8(
 pub extern "C" fn idl_value_as_int16(
     ptr: *const IDLValue,
     ptr_i16: *mut i16,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -386,7 +551,7 @@ pub extern "C" fn idl_value_as_int16(
 pub extern "C" fn idl_value_as_int32(
     ptr: *const IDLValue,
     ptr_i32: *mut i32,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -405,7 +570,7 @@ pub extern "C" fn idl_value_as_int32(
 pub extern "C" fn idl_value_as_int64(
     ptr: *const IDLValue,
     ptr_i64: *mut i64,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -424,7 +589,7 @@ pub extern "C" fn idl_value_as_int64(
 pub extern "C" fn idl_value_as_float32(
     ptr: *const IDLValue,
     ptr_f32: *mut f32,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -442,7 +607,7 @@ pub extern "C" fn idl_value_as_float32(
 #[no_mangle]
 pub extern "C" fn idl_value_is_reserved(
     ptr: *const IDLValue,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
 
@@ -466,7 +631,7 @@ pub extern "C" fn idl_value_free(ptr: *const IDLValue) {
 
 pub(crate) fn __todo_replace_this_by_macro_unsized(
     p2ptr: *mut *const IDLValue,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<IDLValue, impl Display>,
 ) -> StateCode {
     match r {
@@ -487,7 +652,7 @@ pub(crate) fn __todo_replace_this_by_macro_unsized(
 
 pub(crate) fn __todo_replace_this_by_macro_primitive<T>(
     ptr_opt: Option<*mut T>,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<T, impl Display>,
 ) -> StateCode {
     match r {

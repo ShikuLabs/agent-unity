@@ -10,7 +10,7 @@ use std::fmt::Display;
 
 /// Construct the [`Principal`] of management canister.
 #[no_mangle]
-pub extern "C" fn principal_management_canister(ret_cb: UnsizedCallBack) {
+pub extern "C" fn principal_management_canister(ret_cb: UnsizedCallBack<u8>) {
     ret_unsized(ret_cb, Principal::management_canister());
 }
 
@@ -24,7 +24,7 @@ pub extern "C" fn principal_management_canister(ret_cb: UnsizedCallBack) {
 pub extern "C" fn principal_self_authenticating(
     public_key: *const u8,
     public_key_len: c_int,
-    ret_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
 ) {
     let public_key = unsafe { std::slice::from_raw_parts(public_key, public_key_len as usize) };
 
@@ -33,7 +33,7 @@ pub extern "C" fn principal_self_authenticating(
 
 /// Construct anonymous [`Principal`].
 #[no_mangle]
-pub extern "C" fn principal_anonymous(ret_cb: UnsizedCallBack) {
+pub extern "C" fn principal_anonymous(ret_cb: UnsizedCallBack<u8>) {
     ret_unsized(ret_cb, Principal::anonymous());
 }
 
@@ -47,8 +47,8 @@ pub extern "C" fn principal_anonymous(ret_cb: UnsizedCallBack) {
 pub extern "C" fn principal_from_bytes(
     bytes: *const u8,
     bytes_len: c_int,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
 
@@ -65,8 +65,8 @@ pub extern "C" fn principal_from_bytes(
 #[no_mangle]
 pub extern "C" fn principal_from_text(
     text: *const c_char,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let text = unsafe { CStr::from_ptr(text).to_str().map_err(AnyErr::from) };
 
@@ -85,8 +85,8 @@ pub extern "C" fn principal_from_text(
 pub extern "C" fn principal_to_text(
     bytes: *const u8,
     bytes_len: c_int,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
 
@@ -99,13 +99,13 @@ pub extern "C" fn principal_to_text(
     __todo_replace_this_by_macro(ret_cb, err_cb, text)
 }
 
-pub(crate) fn __todo_replace_this_by_macro<T, E>(
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+pub(crate) fn __todo_replace_this_by_macro<T, E, A>(
+    ret_cb: UnsizedCallBack<A>,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<T, E>,
 ) -> StateCode
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[A]>,
     E: Display,
 {
     match r {

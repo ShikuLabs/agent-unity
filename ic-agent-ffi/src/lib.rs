@@ -16,10 +16,10 @@ mod principal;
 /// NOTE: New Things
 
 /// A callback used to give the unsized value to caller.
-type UnsizedCallBack = extern "C" fn(*const u8, c_int);
+type UnsizedCallBack<T> = extern "C" fn(*const T, c_int);
 
 /// TODO: Use macro to abstract the same parts from the different functions for reducing duplicated code.
-fn ret_unsized(unsized_cb: UnsizedCallBack, s: impl AsRef<[u8]>) {
+fn ret_unsized<T>(unsized_cb: UnsizedCallBack<T>, s: impl AsRef<[T]>) {
     let arr = s.as_ref();
     let len = arr.len() as c_int;
 

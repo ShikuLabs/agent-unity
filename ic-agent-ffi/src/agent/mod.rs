@@ -228,7 +228,7 @@ pub extern "C" fn agent_create(
     // out: A pointer points to the `AgentWrapper`
     p2ptr_agent_w: *mut *const AgentWrapper,
     // The callback used report error information
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<AgentWrapper> {
         let url = unsafe { CStr::from_ptr(url).to_str().map_err(AnyErr::from) }?.to_string();
@@ -277,8 +277,8 @@ pub extern "C" fn agent_query(
     ptr_agent_w: *const AgentWrapper,
     func_name: *const c_char,
     func_args: *const c_char,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -301,8 +301,8 @@ pub extern "C" fn agent_update(
     ptr_agent_w: *const AgentWrapper,
     func_name: *const c_char,
     func_args: *const c_char,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -325,8 +325,8 @@ pub extern "C" fn agent_update(
 #[no_mangle]
 pub extern "C" fn agent_status(
     ptr_agent_w: *const AgentWrapper,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -356,7 +356,7 @@ pub extern "C" fn agent_free(ptr_agent_w: *const AgentWrapper) {
 
 pub(crate) fn __todo_replace_this_by_macro(
     p2ptr: *mut *const AgentWrapper,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<AgentWrapper, impl Display>,
 ) -> StateCode {
     match r {

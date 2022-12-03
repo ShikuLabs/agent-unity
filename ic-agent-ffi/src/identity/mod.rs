@@ -28,7 +28,7 @@ pub extern "C" fn identity_anonymous(p2fptr: *mut *const dyn Identity) {
 #[no_mangle]
 pub extern "C" fn identity_basic_random(
     p2fptr: *mut *const dyn Identity,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let rng = SystemRandom::new();
 
@@ -44,7 +44,7 @@ pub extern "C" fn identity_basic_random(
 pub extern "C" fn identity_basic_from_pem(
     pem: *const c_char,
     p2fptr: *mut *const dyn Identity,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let pem = unsafe { CStr::from_ptr(pem).to_str().map_err(AnyErr::from) };
 
@@ -68,7 +68,7 @@ pub extern "C" fn identity_secp256k1_random(p2fptr: *mut *const dyn Identity) {
 pub extern "C" fn identity_secp256k1_from_pem(
     pem: *const c_char,
     p2fptr: *mut *const dyn Identity,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let pem = unsafe { CStr::from_ptr(pem).to_str().map_err(AnyErr::from) };
 
@@ -83,8 +83,8 @@ pub extern "C" fn identity_secp256k1_from_pem(
 #[no_mangle]
 pub extern "C" fn identity_sender(
     p2fptr: *const *const dyn Identity,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(*p2fptr as *mut dyn Identity) };
 
@@ -101,9 +101,9 @@ pub extern "C" fn identity_sign(
     bytes: *const u8,
     bytes_len: c_int,
     p2fptr: *const *const dyn Identity,
-    pub_key_cb: UnsizedCallBack,
-    sig_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    pub_key_cb: UnsizedCallBack<u8>,
+    sig_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let boxed = unsafe { Box::from_raw(*p2fptr as *mut dyn Identity) };
     let bytes = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
@@ -143,7 +143,7 @@ pub extern "C" fn identity_free(p2fptr: *const *const dyn Identity) {
 
 pub(crate) fn __todo_replace_this_by_macro(
     p2fptr: *mut *const dyn Identity,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<impl Identity + 'static, impl Display>,
 ) -> StateCode {
     match r {
