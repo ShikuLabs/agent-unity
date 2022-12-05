@@ -56,6 +56,28 @@ pub extern "C" fn idl_value_type(ptr: *const IDLValue, ret_cb: UnsizedCallBack<u
 }
 
 #[no_mangle]
+pub extern "C" fn idl_value_equal(ptr_01: *const IDLValue, ptr_02: *const IDLValue) -> bool {
+    if ptr_01 == ptr_02 {
+        return true;
+    }
+
+    let (boxed_01, boxed_02) = unsafe {
+        (
+            Box::from_raw(ptr_01 as *mut IDLValue),
+            Box::from_raw(ptr_02 as *mut IDLValue),
+        )
+    };
+
+    let is_equal = boxed_01.deref().eq(boxed_02.deref());
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed_01);
+    let _ = Box::into_raw(boxed_02);
+
+    is_equal
+}
+
+#[no_mangle]
 pub extern "C" fn idl_value_as_bool(
     ptr: *const IDLValue,
     ptr_bool: *mut bool,
@@ -770,6 +792,33 @@ mod tests {
         idl_value_type(ptr, ret_cb);
 
         idl_value_free(ptr);
+    }
+
+    #[test]
+    fn idl_value_equal_should_work() {
+        let boxed_01 = Box::new(IDLValue::Bool(true));
+        let boxed_02 = Box::new(IDLValue::Bool(false));
+        let boxed_03 = Box::new(IDLValue::Int32(-11));
+        let boxed_04 = Box::new(IDLValue::Bool(true));
+
+        let ptr_01 = Box::into_raw(boxed_01);
+        let ptr_02 = Box::into_raw(boxed_02);
+        let ptr_03 = Box::into_raw(boxed_03);
+        let ptr_04 = Box::into_raw(boxed_04);
+
+        assert_eq!(idl_value_equal(ptr_01, ptr_01), true);
+        assert_eq!(idl_value_equal(ptr_01, ptr_02), false);
+        assert_eq!(idl_value_equal(ptr_01, ptr_03), false);
+        assert_eq!(idl_value_equal(ptr_01, ptr_04), true);
+
+        assert_eq!(idl_value_equal(ptr_02, ptr_02), true);
+        assert_eq!(idl_value_equal(ptr_02, ptr_03), false);
+        assert_eq!(idl_value_equal(ptr_02, ptr_04), false);
+
+        assert_eq!(idl_value_equal(ptr_03, ptr_03), true);
+        assert_eq!(idl_value_equal(ptr_03, ptr_04), false);
+
+        assert_eq!(idl_value_equal(ptr_04, ptr_04), true);
     }
 
     #[test]
