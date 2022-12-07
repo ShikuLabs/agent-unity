@@ -1115,6 +1115,357 @@ mod tests {
     }
 
     #[test]
+    fn idl_value_ct_bool_should_work() {
+        let mut ptr01 = apply_ptr::<IDLValue>();
+        idl_value_ct_bool(true, &mut ptr01);
+        let boxed01 = unsafe { Box::from_raw(ptr01 as *mut IDLValue) };
+        assert_eq!(&IDLValue::Bool(true), boxed01.deref());
+
+        let mut ptr02 = apply_ptr::<IDLValue>();
+        idl_value_ct_bool(false, &mut ptr02);
+        let boxed02 = unsafe { Box::from_raw(ptr02 as *mut IDLValue) };
+        assert_eq!(&IDLValue::Bool(false), boxed02.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_null_should_work() {
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_null(&mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Null, boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_text_should_work() {
+        const BTEXT: &[u8] = b"Hello World\0";
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_text(BTEXT.as_ptr() as *const c_char, &mut ptr, empty_cb);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Text("Hello World".to_string()), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_number_should_work() {
+        const BNUMBER: &[u8] = b"1234567890\0";
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_number(BNUMBER.as_ptr() as *const c_char, &mut ptr, empty_cb);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Number("1234567890".to_string()), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_float64_should_work() {
+        const FLOAT: f64 = 0.123456789;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_float64(FLOAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Float64(FLOAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_opt_should_work() {
+        const IDL_VALUE: IDLValue = IDLValue::Null;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        let value = Box::new(IDL_VALUE);
+        let value_ptr = Box::into_raw(value);
+        idl_value_ct_opt(value_ptr, &mut ptr);
+
+        let value = unsafe { Box::from_raw(value_ptr) };
+        assert_eq!(&IDLValue::Null, value.deref());
+
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Opt(Box::new(IDL_VALUE)), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_vec_should_work() {
+        const IDL_VALUE_LIST: &[*const IDLValue] = &[
+            &IDLValue::Bool(true),
+            &IDLValue::Null,
+            &IDLValue::Principal(Principal::anonymous()),
+            &IDLValue::Int32(-12),
+        ];
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_vec(
+            IDL_VALUE_LIST.as_ptr(),
+            IDL_VALUE_LIST.len() as c_int,
+            &mut ptr,
+        );
+
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        if let IDLValue::Vec(vals) = boxed.deref() {
+            for (i, v) in vals.iter().enumerate() {
+                let e = unsafe { &*IDL_VALUE_LIST[i] };
+                assert_eq!(e, v);
+            }
+        }
+    }
+
+    #[test]
+    fn idl_value_ct_record_should_work() {
+        const KEYS: &[*const c_char] = &[
+            b"Arg01\0".as_ptr() as *const c_char,
+            b"Arg02\0".as_ptr() as *const c_char,
+            b"Arg03\0".as_ptr() as *const c_char,
+        ];
+        const VALS: &[*const IDLValue] = &[
+            &IDLValue::Bool(true),
+            &IDLValue::Null,
+            &IDLValue::Principal(Principal::anonymous()),
+        ];
+
+        let expected = IDLValue::Record(vec![
+            IDLField {
+                id: Label::Named("Arg01".into()),
+                val: IDLValue::Bool(true),
+            },
+            IDLField {
+                id: Label::Named("Arg02".into()),
+                val: IDLValue::Null,
+            },
+            IDLField {
+                id: Label::Named("Arg03".into()),
+                val: IDLValue::Principal(Principal::anonymous()),
+            },
+        ]);
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_record(
+                KEYS.as_ptr(),
+                KEYS.len() as c_int,
+                VALS.as_ptr(),
+                VALS.len() as c_int,
+                &mut ptr,
+                empty_err_cb,
+            ),
+            StateCode::Ok
+        );
+
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&expected, boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_variant_should_work() {
+        const KEY: *const c_char = b"Variant\0".as_ptr() as *const c_char;
+        const VAL: *const IDLValue = &IDLValue::Bool(true);
+        const CODE: u64 = 64;
+
+        let expected = IDLValue::Variant(VariantValue(
+            Box::new(IDLField {
+                id: Label::Named("Variant".into()),
+                val: IDLValue::Bool(true),
+            }),
+            CODE,
+        ));
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_variant(KEY, VAL, CODE, &mut ptr, empty_err_cb),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&expected, boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_principal_should_work() {
+        const PRINCIPAL: Principal = Principal::anonymous();
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_principal(
+                PRINCIPAL.as_ref().as_ptr(),
+                PRINCIPAL.as_ref().len() as c_int,
+                &mut ptr,
+                empty_err_cb
+            ),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Principal(PRINCIPAL), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_service_should_work() {
+        const PRINCIPAL: Principal = Principal::anonymous();
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_service(
+                PRINCIPAL.as_ref().as_ptr(),
+                PRINCIPAL.as_ref().len() as c_int,
+                &mut ptr,
+                empty_err_cb
+            ),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Service(PRINCIPAL), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_func_should_work() {
+        const PRINCIPAL: Principal = Principal::anonymous();
+        const FUNC_NAME: &str = "hello_word";
+        const P_FUNC_NAME: *const c_char = b"hello_word\0".as_ptr() as *const c_char;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_func(
+                PRINCIPAL.as_ref().as_ptr(),
+                PRINCIPAL.as_ref().len() as c_int,
+                P_FUNC_NAME,
+                &mut ptr,
+                empty_err_cb
+            ),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Func(PRINCIPAL, FUNC_NAME.into()), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_none_should_work() {
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_none(&mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::None, boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_int_should_work() {
+        const INT: &str = "12345678901234567890";
+        const P_INT: *const c_char = b"12345678901234567890\0".as_ptr() as *const c_char;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_int(P_INT, &mut ptr, empty_err_cb),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Int(Int::from_str(INT).unwrap()), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_nat_should_work() {
+        const NAT: &str = "12345678901234567890";
+        const P_NAT: *const c_char = b"12345678901234567890\0".as_ptr() as *const c_char;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        assert_eq!(
+            idl_value_ct_nat(P_NAT, &mut ptr, empty_err_cb),
+            StateCode::Ok
+        );
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Nat(Nat::from_str(NAT).unwrap()), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_nat8_should_work() {
+        const NAT: u8 = 128;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_nat8(NAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Nat8(NAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_nat16_should_work() {
+        const NAT: u16 = 128;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_nat16(NAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Nat16(NAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_nat32_should_work() {
+        const NAT: u32 = 128;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_nat32(NAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Nat32(NAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_nat64_should_work() {
+        const NAT: u64 = 128;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_nat64(NAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Nat64(NAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_int8_should_work() {
+        const INT: i8 = -127;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_int8(INT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Int8(INT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_int16_should_work() {
+        const INT: i16 = -127;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_int16(INT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Int16(INT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_int32_should_work() {
+        const INT: i32 = -127;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_int32(INT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Int32(INT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_int64_should_work() {
+        const INT: i64 = -127;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_int64(INT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Int64(INT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_float32_should_work() {
+        const FLOAT: f32 = 0.123456789;
+
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_float32(FLOAT, &mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Float32(FLOAT), boxed.deref());
+    }
+
+    #[test]
+    fn idl_value_ct_reserved_should_work() {
+        let mut ptr = apply_ptr::<IDLValue>();
+        idl_value_ct_reserved(&mut ptr);
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLValue) };
+        assert_eq!(&IDLValue::Reserved, boxed.deref());
+    }
+
+    #[test]
     fn idl_value_from_text_should_fail() {
         const IDL_VALUE_TEXTS: &[&[u8]] = &[
             b"(128 : nat64\0",
