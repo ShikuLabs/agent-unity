@@ -4,6 +4,7 @@ use candid::IDLArgs;
 use libc::{c_char, c_int};
 use std::ffi::CStr;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::str::FromStr;
 
 #[no_mangle]
@@ -59,6 +60,33 @@ pub extern "C" fn idl_args_from_bytes(
     let idl_args = IDLArgs::from_bytes(slice);
 
     __todo_replace_this_by_macro(p2ptr, err_cb, idl_args)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_args_ct_vec(
+    elems: *const *const IDLValue,
+    elems_len: c_int,
+    p2ptr: *mut *const IDLArgs,
+) {
+    let mut values = Vec::new();
+
+    for i in 0..elems_len as usize {
+        unsafe {
+            let val_ptr = *elems.add(i);
+            let boxed = Box::from_raw(val_ptr as *mut IDLValue);
+
+            values.push(boxed.deref().clone());
+
+            // keep available the fat pointer to the [`Identity`]
+            let _ = Box::into_raw(boxed);
+        }
+    }
+
+    let idl_args = IDLArgs { args: values };
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_args);
+    }
 }
 
 #[no_mangle]
@@ -206,6 +234,29 @@ mod tests {
 
         let boxed = unsafe { Box::from_raw(ptr as *mut IDLArgs) };
         assert_eq!(&IDLArgs::new(&IDL_VALUES), boxed.as_ref());
+    }
+
+    #[test]
+    fn idl_args_ct_vec_should_work() {
+        const IDL_VALUE_LIST: &[*const IDLValue] = &[
+            &IDLValue::Bool(true),
+            &IDLValue::Null,
+            &IDLValue::Principal(Principal::anonymous()),
+            &IDLValue::Int32(-12),
+        ];
+
+        let mut ptr = apply_ptr::<IDLArgs>();
+        idl_args_ct_vec(
+            IDL_VALUE_LIST.as_ptr(),
+            IDL_VALUE_LIST.len() as c_int,
+            &mut ptr,
+        );
+
+        let boxed = unsafe { Box::from_raw(ptr as *mut IDLArgs) };
+        for (i, v) in boxed.args.iter().enumerate() {
+            let e = unsafe { &*IDL_VALUE_LIST[i] };
+            assert_eq!(e, v);
+        }
     }
 
     #[test]
