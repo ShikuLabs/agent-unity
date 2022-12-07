@@ -1,11 +1,14 @@
 use crate::{ret_thin_ptr, ret_unsized, AnyErr, StateCode, UnsizedCallBack};
 use anyhow::anyhow;
-use candid::parser::value::{IDLField, IDLValue};
-use libc::c_char;
+use candid::parser::value::{IDLField, IDLValue, VariantValue};
+use candid::types::Label;
+use candid::{Int, Nat};
+use ic_types::Principal;
+use libc::{c_char, c_int};
 use std::ffi::CStr;
 use std::fmt::Display;
 use std::ops::Deref;
-use std::str::FromStr;
+use std::str::{FromStr, Utf8Error};
 
 // const NOT_MATCH_TYPE: AnyErr
 
@@ -41,6 +44,362 @@ pub extern "C" fn idl_value_from_text(
     let idl_value = text.and_then(|text| IDLValue::from_str(&text).map_err(AnyErr::from));
 
     __todo_replace_this_by_macro_unsized(p2ptr, err_cb, idl_value)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_bool(value: bool, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Bool(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_null(p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Null;
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_text(
+    text: *const c_char,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let text = unsafe { CStr::from_ptr(text).to_str().map_err(AnyErr::from) };
+
+    let idl_value = text.map(|text| IDLValue::Text(text.to_string()));
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, idl_value)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_number(
+    number: *const c_char,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let number = unsafe { CStr::from_ptr(number).to_str().map_err(AnyErr::from) };
+
+    let idl_value = number.map(|text| IDLValue::Number(text.to_string()));
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, idl_value)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_float64(value: f64, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Float64(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_opt(value: *const IDLValue, p2ptr: *mut *const IDLValue) {
+    let boxed = unsafe { Box::from_raw(value as *mut IDLValue) };
+
+    let idl_value = IDLValue::Opt(boxed.clone());
+
+    // keep available the fat pointer to the [`Identity`]
+    let _ = Box::into_raw(boxed);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_vec(
+    elems: *const *const IDLValue,
+    elems_len: c_int,
+    p2ptr: *mut *const IDLValue,
+) {
+    let mut values = Vec::new();
+
+    for i in 0..elems_len as usize {
+        unsafe {
+            let val_ptr = *elems.add(i);
+            let boxed = Box::from_raw(val_ptr as *mut IDLValue);
+
+            values.push(boxed.deref().clone());
+
+            // keep available the fat pointer to the [`Identity`]
+            let _ = Box::into_raw(boxed);
+        }
+    }
+
+    let idl_value = IDLValue::Vec(values);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_record(
+    keys: *const *const c_char,
+    keys_len: c_int,
+    vals: *const *const IDLValue,
+    vals_len: c_int,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let once = || {
+        if keys_len != vals_len {
+            return Err(anyhow!("The length of keys and vals are not matched"));
+        }
+
+        let mut rkeys = Vec::new();
+        let mut rvals = Vec::new();
+
+        for i in 0..keys_len as usize {
+            unsafe {
+                let key_ptr = *keys.add(i);
+
+                let c_str = CStr::from_ptr(key_ptr as *const c_char);
+                let str = c_str.to_str()?;
+
+                rkeys.push(str.to_string());
+            }
+        }
+
+        for i in 0..vals_len as usize {
+            unsafe {
+                let val_ptr = *vals.add(i);
+                let boxed = Box::from_raw(val_ptr as *mut IDLValue);
+
+                rvals.push(boxed.deref().clone());
+
+                // keep available the fat pointer to the [`Identity`]
+                let _ = Box::into_raw(boxed);
+            }
+        }
+
+        let fields: Vec<IDLField> = rkeys
+            .drain(..)
+            .zip(rvals.drain(..))
+            .map(|(key, val)| IDLField {
+                id: Label::Named(key),
+                val,
+            })
+            .collect();
+
+        Ok(IDLValue::Record(fields))
+    };
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, once())
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_variant(
+    key: *const c_char,
+    val: *const IDLValue,
+    code: u64,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let once = || {
+        let key = unsafe { CStr::from_ptr(key).to_str() }?.to_string();
+
+        let boxed = unsafe { Box::from_raw(val as *mut IDLValue) };
+        let val = boxed.deref().clone();
+
+        // keep available the fat pointer to the [`Identity`]
+        let _ = Box::into_raw(boxed);
+
+        Ok::<IDLValue, Utf8Error>(IDLValue::Variant(VariantValue(
+            Box::new(IDLField {
+                id: Label::Named(key),
+                val,
+            }),
+            code,
+        )))
+    };
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, once())
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_principal(
+    bytes: *const u8,
+    bytes_len: c_int,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
+
+    let idl_value = Principal::try_from_slice(slice).map(IDLValue::Principal);
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, idl_value)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_service(
+    bytes: *const u8,
+    bytes_len: c_int,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
+
+    let r = Principal::try_from_slice(slice).map(IDLValue::Service);
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_func(
+    bytes: *const u8,
+    bytes_len: c_int,
+    func_name: *const c_char,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let slice = unsafe { std::slice::from_raw_parts(bytes, bytes_len as usize) };
+
+    let once = || {
+        let principal = Principal::try_from_slice(slice).map_err(AnyErr::from)?;
+        let func_name = unsafe {
+            CStr::from_ptr(func_name)
+                .to_str()
+                .map_err(AnyErr::from)?
+                .to_string()
+        };
+
+        Ok::<IDLValue, AnyErr>(IDLValue::Func(principal, func_name))
+    };
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, once())
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_none(p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::None;
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_int(
+    int: *const c_char,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let r = unsafe { CStr::from_ptr(int).to_str().map_err(AnyErr::from) }
+        .and_then(|int| Int::from_str(int).map_err(AnyErr::from))
+        .map(IDLValue::Int);
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_nat(
+    nat: *const c_char,
+    p2ptr: *mut *const IDLValue,
+    err_cb: UnsizedCallBack<u8>,
+) -> StateCode {
+    let r = unsafe { CStr::from_ptr(nat).to_str().map_err(AnyErr::from) }
+        .and_then(|nat| Nat::from_str(nat).map_err(AnyErr::from))
+        .map(IDLValue::Nat);
+
+    __todo_replace_this_by_macro_unsized(p2ptr, err_cb, r)
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_nat8(value: u8, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Nat8(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_nat16(value: u16, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Nat16(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_nat32(value: u32, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Nat32(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_nat64(value: u64, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Nat64(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_int8(value: i8, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Int8(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_int16(value: i16, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Int16(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_int32(value: i32, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Int32(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_int64(value: i64, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Int64(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_float32(value: f32, p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Float32(value);
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn idl_value_ct_reserved(p2ptr: *mut *const IDLValue) {
+    let idl_value = IDLValue::Reserved;
+
+    unsafe {
+        ret_thin_ptr(p2ptr, idl_value);
+    }
 }
 
 #[no_mangle]
