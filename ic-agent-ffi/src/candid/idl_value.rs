@@ -196,7 +196,7 @@ pub extern "C" fn idl_value_ct_record(
 }
 
 #[no_mangle]
-pub extern "C" fn idl_value_ct_variant(
+pub extern "C" fn idl_value_ct_variantk(
     key: *const c_char,
     val: *const IDLValue,
     code: u64,
