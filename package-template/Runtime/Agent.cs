@@ -54,7 +54,7 @@ public class Agent
         }
     }
 
-    public IDLArgs Query(string funcName, string funcArgs)
+    public IDLArgs Query(string funcName, IDLArgs args)
     {
         string? outError = null;
         UnsizedCallback errCb = (data, len) =>
@@ -65,23 +65,21 @@ public class Agent
         var sc = FromRust.agent_query(
             this._ptr,
             funcName,
-            funcArgs,
+            args.ToString(),
             out IntPtr ptr,
             errCb
         );
 
         if (sc == StateCode.Ok)
             return new IDLArgs(ptr);
-        else
-        {
-            if (outError == null)
-                throw new FailedCallingRust("Failed on getting error from rust.");
-            else
-                throw new ErrorFromRust(outError);
-        }
+
+        if (outError == null)
+            throw new FailedCallingRust("Failed on getting error from rust.");
+        
+        throw new ErrorFromRust(outError);
     }
 
-    public IDLArgs Update(string funcName, string funcArgs)
+    public IDLArgs Update(string funcName, IDLArgs args)
     {
         string? outError = null;
         UnsizedCallback errCb = (data, len) =>
@@ -92,20 +90,18 @@ public class Agent
         var sc = FromRust.agent_update(
             this._ptr,
             funcName,
-            funcArgs,
+            args.ToString(),
             out IntPtr ptr,
             errCb
         );
 
         if (sc == StateCode.Ok)
             return new IDLArgs(ptr);
-        else
-        {
-            if (outError == null)
-                throw new FailedCallingRust("Failed on getting error from rust.");
-            else
-                throw new ErrorFromRust(outError);
-        }
+
+        if (outError == null)
+            throw new FailedCallingRust("Failed on getting error from rust.");
+        
+        throw new ErrorFromRust(outError);
     }
     
     public string Status()

@@ -77,7 +77,7 @@ public class IDLArgs
         }
     }
 
-    public static IDLArgs WithVec(IDLValue[] values)
+    public static IDLArgs With(IDLValue[] values)
     {
         var ptrs = values.Select(value => value._ptr).ToArray();
 

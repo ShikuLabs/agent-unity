@@ -44,7 +44,7 @@ namespace Tests.Runtime.Candid
         }
     
         [Test]
-        public void WithVec_ShouldWork()
+        public void With_ShouldWork()
         {
             IDLValue[] values = new[]
             {
@@ -52,7 +52,7 @@ namespace Tests.Runtime.Candid
                 IDLValue.WithNull(),
                 IDLValue.WithPrincipal(Principal.Anonymous())
             };
-            var args = IDLArgs.WithVec(values);
+            var args = IDLArgs.With(values);
 
             var vec = args.AsVec();
 

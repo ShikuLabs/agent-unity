@@ -1,4 +1,5 @@
 using System;
+using Candid;
 using NUnit.Framework;
 
 namespace Tests.Runtime
@@ -218,7 +219,8 @@ service : (opt InternetIdentityInit) -> {
 
        var agent = Agent.Create(MainNet, identity, canisterId, IIDidContent);
 
-       var args = agent.Query("lookup", "(1974211: nat64)");
+       var funcArgs = IDLArgs.With(new []{ IDLValue.WithNat64(1974211) });
+       var args = agent.Query("lookup", funcArgs);
 
        Assert.AreEqual(expected, args.ToString());
      }
@@ -231,7 +233,8 @@ service : (opt InternetIdentityInit) -> {
      
        var agent = Agent.Create(MainNet, identity, canisterId, IIDidContent);
 
-       var args = agent.Update("create_challenge", "()");
+       var funcArgs = IDLArgs.With(new IDLValue[] {});
+       var args = agent.Update("create_challenge", funcArgs);
 
        Assert.True(args.ToString().Length != 0);
      }

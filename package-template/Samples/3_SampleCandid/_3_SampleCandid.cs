@@ -46,7 +46,7 @@ namespace _3_SampleCandid
             
             // [`IDLArgs`] actually is a vec of [`IDLValue`],
             // it's easy to create, like previous code
-            var args = IDLArgs.WithVec(values);
+            var args = IDLArgs.With(values);
             // Display it
             Debug.Log($"{args}");
             // NOTE: `query` & `update` only return [`IDLArgs`] rather than [`IDLValue`],
