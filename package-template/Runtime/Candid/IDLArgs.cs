@@ -9,7 +9,7 @@ public class IDLArgs
 {
     private IntPtr _ptr;
 
-    private IDLArgs(IntPtr ptr)
+    internal IDLArgs(IntPtr ptr)
     {
         _ptr = ptr;
     }

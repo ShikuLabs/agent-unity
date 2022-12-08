@@ -218,9 +218,9 @@ service : (opt InternetIdentityInit) -> {
 
        var agent = Agent.Create(MainNet, identity, canisterId, IIDidContent);
 
-       var idlStr = agent.Query("lookup", "(1974211: nat64)");
+       var args = agent.Query("lookup", "(1974211: nat64)");
 
-       Assert.AreEqual(expected, idlStr);
+       Assert.AreEqual(expected, args.ToString());
      }
 
      [Test]
@@ -231,9 +231,9 @@ service : (opt InternetIdentityInit) -> {
      
        var agent = Agent.Create(MainNet, identity, canisterId, IIDidContent);
 
-       var idlStr = agent.Update("create_challenge", "()");
+       var args = agent.Update("create_challenge", "()");
 
-       Assert.True(idlStr.Length != 0);
+       Assert.True(args.ToString().Length != 0);
      }
 
      [Test]

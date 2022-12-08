@@ -1,7 +1,10 @@
-using System;
-using System.Runtime.InteropServices;
+
 
 #nullable enable
+using System;
+using System.Runtime.InteropServices;
+using Candid;
+
 public class Agent
 {
     private IntPtr _ptr;
@@ -51,14 +54,9 @@ public class Agent
         }
     }
 
-    public string Query(string funcName, string funcArgs)
+    public IDLArgs Query(string funcName, string funcArgs)
     {
-        string? outIdlArgs = null;
         string? outError = null;
-        UnsizedCallback retCb = (data, len) =>
-        {
-            outIdlArgs = Marshal.PtrToStringAnsi(data);
-        };
         UnsizedCallback errCb = (data, len) =>
         {
             outError = Marshal.PtrToStringAnsi(data);
@@ -68,17 +66,12 @@ public class Agent
             this._ptr,
             funcName,
             funcArgs,
-            retCb,
+            out IntPtr ptr,
             errCb
         );
 
         if (sc == StateCode.Ok)
-        {
-            if (outIdlArgs == null)
-                throw new FailedCallingRust("Failed on calling function of rust.");
-            else
-                return outIdlArgs;
-        }
+            return new IDLArgs(ptr);
         else
         {
             if (outError == null)
@@ -87,35 +80,25 @@ public class Agent
                 throw new ErrorFromRust(outError);
         }
     }
-    
-    public string Update(string funcName, string funcArgs)
+
+    public IDLArgs Update(string funcName, string funcArgs)
     {
-        string? outIdlArgs = null;
         string? outError = null;
-        UnsizedCallback retCb = (data, len) =>
-        {
-            outIdlArgs = Marshal.PtrToStringAnsi(data);
-        };
         UnsizedCallback errCb = (data, len) =>
         {
             outError = Marshal.PtrToStringAnsi(data);
         };
-        
+
         var sc = FromRust.agent_update(
             this._ptr,
             funcName,
             funcArgs,
-            retCb,
+            out IntPtr ptr,
             errCb
         );
-        
+
         if (sc == StateCode.Ok)
-        {
-            if (outIdlArgs == null)
-                throw new FailedCallingRust("Failed on calling function of rust.");
-            else
-                return outIdlArgs;
-        }
+            return new IDLArgs(ptr);
         else
         {
             if (outError == null)
@@ -179,7 +162,7 @@ public class Agent
             IntPtr ptr2Agent,
             [MarshalAs(UnmanagedType.LPStr)] string funcName,
             [MarshalAs(UnmanagedType.LPStr)] string funcArgs,
-            UnsizedCallback retCb,
+            out IntPtr ptr2Args,
             UnsizedCallback errCb
         );
 
@@ -188,7 +171,7 @@ public class Agent
             IntPtr ptr2Agent,
             [MarshalAs(UnmanagedType.LPStr)] string funcName,
             [MarshalAs(UnmanagedType.LPStr)] string funcArgs,
-            UnsizedCallback retCb,
+            out IntPtr ptr2Args,
             UnsizedCallback errCb
         );
 
