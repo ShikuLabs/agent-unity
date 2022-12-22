@@ -1,33 +1,38 @@
 {
-  "name": "com.shikulabs.ic-agent",
-  "version": "0.2.1",
-  "displayName": "IC Agent",
-  "description": "The package brings the IC ecosystem to Unity, allowing Unity developers to call the functions of canisters on IC, create encrypted account files.",
-  "unity": "2021.3",
-  "unityRelease": "4f1",
-  "documentationUrl": "https://github.com/ShikuLabs/agent-unity",
-  "changelogUrl": "https://github.com/ShikuLabs/agent-unity",
-  "licensesUrl": "https://github.com/ShikuLabs/agent-unity",
-  "keywords": [
-    "dfinity",
-    "agent",
-    "encrytped"
-  ],
-  "author": {
-    "name": "Shiku Labs",
-    "email": "labs@shiku.com",
-    "url": "https://github.com/ShikuLabs"
-  },
-  "samples": [
-    {
-      "displayName": "1_Identity-Example",
-      "description": "Contains example code showing how to create [`Identity`]",
-      "path": "Samples/1_SamplesIdentity"
+    "name": "com.shikulabs.ic-agent",
+    "version": "0.3.0",
+    "displayName": "IC Agent",
+    "description": "The package brings the IC ecosystem to Unity, allowing Unity developers to call the functions of canisters on IC, create encrypted account files.",
+    "unity": "2021.3",
+    "unityRelease": "4f1",
+    "documentationUrl": "https://github.com/ShikuLabs/agent-unity",
+    "changelogUrl": "https://github.com/ShikuLabs/agent-unity",
+    "licensesUrl": "https://github.com/ShikuLabs/agent-unity",
+    "keywords": [
+        "dfinity",
+        "agent",
+        "encrytped"
+    ],
+    "author": {
+        "name": "Shiku Labs",
+        "email": "labs@shiku.com",
+        "url": "https://github.com/ShikuLabs"
     },
-    {
-      "displayName": "2_Agent-Example",
-      "description": "Contains example code showing how to create [`Agent`]",
-      "path": "Samples/2_SamplesAgent"
-    }
-  ]
+    "samples": [
+        {
+            "displayName": "1_Identity-Example",
+            "description": "Contains example code showing how to create [`Identity`]",
+            "path": "Samples/1_SamplesIdentity"
+        },
+        {
+            "displayName": "2_Agent-Example",
+            "description": "Contains example code showing how to create [`Agent`]",
+            "path": "Samples/2_SamplesAgent"
+        },
+        {
+            "displayName": "3_Candid-Example",
+            "description": "Contains example code showing how to use [`IDLValue`] & [`IDLArgs`]",
+            "path": "Samples/3_SampleCandid"
+        }
+    ]
 }

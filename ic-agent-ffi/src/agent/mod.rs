@@ -156,8 +156,7 @@ impl AgentWrapper {
         } else {
             let method_name = MgmtMethod::from_str(method_name).with_context(|| {
                 format!(
-                    "Attempted to call an unsupported management canister method: {}",
-                    method_name
+                    "Attempted to call an unsupported management canister method: {method_name}",
                 )
             })?;
 
@@ -228,7 +227,7 @@ pub extern "C" fn agent_create(
     // out: A pointer points to the `AgentWrapper`
     p2ptr_agent_w: *mut *const AgentWrapper,
     // The callback used report error information
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<AgentWrapper> {
         let url = unsafe { CStr::from_ptr(url).to_str().map_err(AnyErr::from) }?.to_string();
@@ -277,8 +276,8 @@ pub extern "C" fn agent_query(
     ptr_agent_w: *const AgentWrapper,
     func_name: *const c_char,
     func_args: *const c_char,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    p2ptr: *mut *const IDLArgs,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -288,12 +287,10 @@ pub extern "C" fn agent_query(
         let runtime = runtime::Runtime::new()?;
         let rst_idl = runtime.block_on(agent_w.query(func_name, func_args))?;
 
-        let rst_cstr = rst_idl.to_string() + "\0";
-
-        Ok(rst_cstr)
+        Ok(rst_idl)
     };
 
-    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
+    crate::candid::idl_args::__todo_replace_this_by_macro(p2ptr, err_cb, once())
 }
 
 #[no_mangle]
@@ -301,8 +298,8 @@ pub extern "C" fn agent_update(
     ptr_agent_w: *const AgentWrapper,
     func_name: *const c_char,
     func_args: *const c_char,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    p2ptr: *mut *const IDLArgs,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { AgentWrapper::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -312,21 +309,17 @@ pub extern "C" fn agent_update(
         let runtime = runtime::Runtime::new()?;
         let rst_idl = runtime.block_on(agent_w.update(func_name, func_args))?;
 
-        let rst_cstr = CString::new(rst_idl.to_string())
-            .map_err(AnyErr::from)?
-            .into_bytes_with_nul();
-
-        Ok(rst_cstr)
+        Ok(rst_idl)
     };
 
-    crate::principal::__todo_replace_this_by_macro(ret_cb, err_cb, once())
+    crate::candid::idl_args::__todo_replace_this_by_macro(p2ptr, err_cb, once())
 }
 
 #[no_mangle]
 pub extern "C" fn agent_status(
     ptr_agent_w: *const AgentWrapper,
-    ret_cb: UnsizedCallBack,
-    err_cb: UnsizedCallBack,
+    ret_cb: UnsizedCallBack<u8>,
+    err_cb: UnsizedCallBack<u8>,
 ) -> StateCode {
     let once = || -> AnyResult<_> {
         let agent_w = unsafe { Box::from_raw(ptr_agent_w as *mut AgentWrapper) };
@@ -356,7 +349,7 @@ pub extern "C" fn agent_free(ptr_agent_w: *const AgentWrapper) {
 
 pub(crate) fn __todo_replace_this_by_macro(
     p2ptr: *mut *const AgentWrapper,
-    err_cb: UnsizedCallBack,
+    err_cb: UnsizedCallBack<u8>,
     r: Result<AgentWrapper, impl Display>,
 ) -> StateCode {
     match r {
@@ -509,8 +502,7 @@ mod tests {
 
     #[test]
     fn agent_query_should_work() {
-        extern "C" fn ret_cb(data: *const u8, _len: c_int) {
-            const EXPECTED: &str = r#"(
+        const EXPECTED: &str = r#"(
   vec {
     record {
       alias = "macbook-2021";
@@ -521,12 +513,6 @@ mod tests {
     };
   },
 )"#;
-
-            let c_str = unsafe { CStr::from_ptr(data as *const i8) };
-            let str = c_str.to_str().unwrap();
-
-            assert_eq!(str, EXPECTED);
-        }
 
         let mut fptr = apply_fptr::<Secp256k1Identity, _>();
         identity_secp256k1_random(&mut fptr);
@@ -547,18 +533,23 @@ mod tests {
             StateCode::Ok
         );
 
+        let mut idl_ptr = apply_ptr::<IDLArgs>();
+
         assert_eq!(
             agent_query(
                 ptr,
                 b"lookup\0".as_ptr() as *const c_char,
                 b"(1974211: nat64)\0".as_ptr() as *const c_char,
-                ret_cb,
+                &mut idl_ptr,
                 panic_err_cb,
             ),
             StateCode::Ok
         );
 
         unsafe {
+            let idl_boxed = Box::from_raw(idl_ptr as *mut IDLArgs);
+            assert_eq!(EXPECTED, idl_boxed.to_string());
+
             let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
             assert!(identity_boxed.sender().is_ok());
 
@@ -597,18 +588,23 @@ mod tests {
             StateCode::Ok
         );
 
+        let mut idl_ptr = apply_ptr::<IDLArgs>();
+
         assert_eq!(
             agent_update(
                 ptr,
                 b"create_challenge\0".as_ptr() as *const c_char,
                 b"()\0".as_ptr() as *const c_char,
-                empty_cb,
+                &mut idl_ptr,
                 panic_err_cb,
             ),
             StateCode::Ok
         );
 
         unsafe {
+            let idl_boxed = Box::from_raw(idl_ptr as *mut IDLArgs);
+            assert!(idl_boxed.to_string().contains("png_base64"));
+
             let identity_boxed = Box::from_raw(fptr as *mut dyn Identity);
             assert!(identity_boxed.sender().is_ok());
 
