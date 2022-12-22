@@ -207,7 +207,7 @@ service : (opt InternetIdentityInit) -> {
     record {
       alias = ""macbook-2021"";
       pubkey = blob ""0^0\0c\06\0a+\06\01\04\01\83\b8C\01\01\03N\00\a5\01\02\03& \01!X Q\bf\c1O\11\feX\a1\1d\1a\1a|$\be\15>\12\dc/|v\bc)\db#\14\a0pM!\fdf\22X V\ac\d0t\02c\15\e7\fd\edS\ed?K\a7r\86\86K\f9\06\9a\c7\04I\15\a3\f4\00-\a6\93"";
-      key_type = variant { unknown };
+      key_type = variant { platform };
       purpose = variant { authentication };
       credential_id = opt blob ""\0c\d6\e3\cd\8a\ad\07\e6\95\e9\08j\90\c6.\0d\b0\d8\cc\db\f6\c7\18l\ba\1aM\c9\8b\a8\12\c8%\d2\af\12\bc\0a\cd\b1\08\9d\af\e6\f1\9c\a0Lq\b0\a2\e9-\12\cc\8a\c1\ad%\b1P\b6\f8@+_\a9\223\af\07\0d\1d\cfv\9b\0a\80\fd\8a\abE\c5"";
     };
