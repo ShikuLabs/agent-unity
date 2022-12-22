@@ -156,8 +156,7 @@ impl AgentWrapper {
         } else {
             let method_name = MgmtMethod::from_str(method_name).with_context(|| {
                 format!(
-                    "Attempted to call an unsupported management canister method: {}",
-                    method_name
+                    "Attempted to call an unsupported management canister method: {method_name}",
                 )
             })?;
 
